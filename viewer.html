@@ -41,7 +41,9 @@
   button.nav:disabled{opacity:.28;cursor:default}
   .slidewrap{flex:1;display:flex;align-items:center;gap:10px}
   input[type=range]{flex:1;accent-color:#141414}
-  .spin.active,.detail.active{background:var(--ink);color:#fff}
+  .spin.active,.detail.active,.labels.active{background:var(--ink);color:#fff}
+  body.nolabels #legend{display:none}
+  body.nolabels #detailtag .cnt{display:none}
   .hint{position:absolute;bottom:6px;right:16px;z-index:7;font-size:11px;color:#b3b3ad}
   /* encouraging IKEA guy */
   #buddy{position:absolute;right:12px;bottom:6px;z-index:8;width:118px;pointer-events:none;transform:translateX(150%);transition:transform .55s cubic-bezier(.2,.8,.2,1)}
@@ -55,7 +57,7 @@
   #buddy .speech::before{content:"";position:absolute;right:-11px;bottom:16px;border:6px solid transparent;border-left-color:#fff;z-index:1}
   @keyframes wiggle{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
   @media (prefers-reduced-motion: reduce){#buddy .guy{animation:none}#buddy{transition:none}}
-  @media (max-width:600px){#buddy{width:88px}#buddy .speech{right:66px;bottom:92px;width:120px;font-size:11px}}
+  @media (max-width:600px){#buddy{width:88px}#buddy .speech{right:66px;bottom:92px;width:120px;font-size:11px}#legend{padding:8px 16px 0}}
   @media (max-width:600px){#stage{height:400px}.stepno{font-size:34px}#inset,#detailtag{width:150px;height:150px}#legend{max-width:48%}}
 </style>
 </head>
@@ -72,9 +74,9 @@
       <svg id="leads"><line id="lead" stroke="#141414" stroke-width="1.5" stroke-dasharray="4 3" x1="0" y1="0" x2="0" y2="0"/><circle id="target" r="7" fill="none" stroke="#e6502e" stroke-width="2" cx="-40" cy="-40"/></svg>
       <canvas id="inset"></canvas>
       <div id="detailtag"><b>DETAIL</b><span class="cnt" id="cnt"></span></div>
-      <div id="legend"></div>
       <div id="buddy"><div class="speech" id="speech"></div><div class="guy" id="guy"></div></div>
     </div>
+    <div id="legend"></div>
     <div class="cap">
       <div class="name" id="cname"></div>
       <div class="txt" id="ctxt"></div>
@@ -83,6 +85,7 @@
       <button class="nav" id="prev" aria-label="Previous">&#8592;</button>
       <div class="slidewrap"><input type="range" id="slider" min="0" max="48" value="0" step="1" aria-label="Step"></div>
       <button class="nav detail active" id="detail" aria-label="Toggle close-up" title="Close-up detail (on)">&#128269;</button>
+      <button class="nav labels active" id="labels" aria-label="Toggle item labels" title="Item labels (on)">&#127991;</button>
       <button class="nav spin" id="spin" aria-label="Toggle spin" title="Auto-spin (off)">&#8635;</button>
       <button class="nav" id="play" aria-label="Play">&#9658;</button>
       <button class="nav" id="next" aria-label="Next">&#8594;</button>
@@ -365,7 +368,7 @@ const BUILDERS={brimnes:buildBrimnes,lack:buildLack};
 
 // ---------- engine state ----------
 let MODEL=null,P={},idx=0;
-let theta=0.86,phi=1.02,spinOn=false,calloutOn=true;
+let theta=0.86,phi=1.02,spinOn=false,calloutOn=true,labelsOn=true;
 const camera=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);
 const camI=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);
 let camCenter=V(0,2,0),camTarget=V(0,2,0),iCenter=V(0,2,0),iTarget=V(0,2,0);
@@ -415,7 +418,7 @@ function focusFor(n,before){
     const ks=[...MODEL.vis(n)].filter(k=>!before.has(k));
     ks.forEach(k=>{const o=P[k];if(!o)return;const[sx,sy,sz]=o.size;pts.push(o.pos.clone());pts.push(o.pos.clone().add(V(sx/2,sy/2,sz/2)));pts.push(o.pos.clone().add(V(-sx/2,-sy/2,-sz/2)));});
   }
-  if(!pts.length){[...MODEL.vis(n)].forEach(k=>{const o=P[k];if(o)pts.push(o.pos.clone());});}
+  if(!pts.length){[...MODEL.vis(n)].forEach(k=>{const o=P[k];if(!o)return;const[sx,sy,sz]=o.size;pts.push(o.pos.clone());pts.push(o.pos.clone().add(V(sx/2,sy/2,sz/2)));pts.push(o.pos.clone().add(V(-sx/2,-sy/2,-sz/2)));});}
   if(!pts.length)pts=[V(0,2,0)];
   const c=V(0,0,0);pts.forEach(p=>c.add(p));c.multiplyScalar(1/pts.length);
   let r=0;pts.forEach(p=>r=Math.max(r,p.distanceTo(c)));r=Math.max(r,1);
@@ -442,7 +445,7 @@ function updateLeader(){
 }
 const trayLabelPool=[];
 function positionTrayLabels(){
-  if(idx!==0){trayLabelPool.forEach(d=>d.style.display='none');return;}
+  if(idx!==0||!labelsOn){trayLabelPool.forEach(d=>d.style.display='none');return;}
   const w=canvas.clientWidth,h=canvas.clientHeight,labels=MODEL.trayLabels;
   while(trayLabelPool.length<labels.length){const d=document.createElement('div');d.className='chip';d.style.position='absolute';d.style.transform='translate(-50%,0)';leads.parentElement.appendChild(d);trayLabelPool.push(d);}
   labels.forEach((l,i)=>{const d=trayLabelPool[i];d.innerHTML=l.text;const v=l.anchor.clone().project(camera);if(v.z>1){d.style.display='none';return;}d.style.display='flex';d.style.left=((v.x*0.5+0.5)*w)+'px';d.style.top=((-v.y*0.5+0.5)*h+8)+'px';d.style.zIndex=5;});
@@ -509,8 +512,9 @@ function buildLegend(step){legendEl.innerHTML='';(step.it||[]).forEach(it=>{cons
 function go(i){
   const cnt=MODEL.count;idx=Math.max(0,Math.min(cnt,i));userZoom=1;
   const step=MODEL.steps[idx];
-  stepnoEl.innerHTML=idx===0?'Parts':(idx+'<small>/ '+cnt+'</small>');
-  nameEl.textContent=idx===0?step.name:(idx+'. '+step.name);
+  const fin=idx===MODEL.finishedIdx;
+  stepnoEl.innerHTML=idx===0?'Parts':(fin?'&#10003;':(idx+'<small>/ '+MODEL.realCount+'</small>'));
+  nameEl.textContent=(idx===0||fin)?step.name:(idx+'. '+step.name);
   txtEl.textContent=step.txt;
   const before=MODEL.vis(idx-1<0?0:idx-1);
   setVis(idx);tray.visible=(idx===0);
@@ -537,6 +541,12 @@ function loadModel(key){
   while(tray.children.length)tray.remove(tray.children[0]);
   trayLabelPool.forEach(d=>d.remove());trayLabelPool.length=0;
   MODEL=BUILDERS[key]();P=MODEL.P;
+  const rc=MODEL.count,fin=rc+1;                       // extra showcase step = fully assembled product
+  MODEL.realCount=rc;MODEL.finishedIdx=fin;MODEL.count=fin;
+  MODEL.steps[fin]={name:'Finished!',txt:MODEL.finish||'All done — enjoy your new furniture!',it:[]};
+  const _vis=MODEL.vis,_fx=MODEL.fx;
+  MODEL.vis=n=>n>=fin?_vis(rc):_vis(n);
+  MODEL.fx=n=>n>=fin?[]:_fx(n);
   titleEl.textContent=MODEL.name;document.title='IKEA — '+MODEL.name;
   modelSel.value=key;go(0);
 }
@@ -546,6 +556,8 @@ let playing=false,timer=null;
 playB.onclick=()=>{playing=!playing;playB.innerHTML=playing?'&#10074;&#10074;':'&#9658;';if(playing)timer=setInterval(()=>go(idx>=MODEL.count?0:idx+1),2800);else clearInterval(timer);};
 spinB.onclick=()=>{spinOn=!spinOn;spinB.classList.toggle('active',spinOn);spinB.title='Auto-spin ('+(spinOn?'on':'off')+')';};
 detailB.onclick=()=>{calloutOn=!calloutOn;detailB.classList.toggle('active',calloutOn);detailB.title='Close-up detail ('+(calloutOn?'on':'off')+')';};
+const labelsB=document.getElementById('labels');
+labelsB.onclick=()=>{labelsOn=!labelsOn;labelsB.classList.toggle('active',labelsOn);document.body.classList.toggle('nolabels',!labelsOn);labelsB.title='Item labels ('+(labelsOn?'on':'off')+')';};
 modelSel.onchange=()=>{const k=modelSel.value;history.replaceState(null,'','?model='+k);loadModel(k);};
 
 let dragging=false,lx=0,ly=0;
