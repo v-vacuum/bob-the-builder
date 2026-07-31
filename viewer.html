@@ -6,75 +6,145 @@
 <title>IKEA — 3D assembly</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  :root{--ink:#141414;--paper:#f7f6f3;--muted:#6b6b6b;--hl:#e6502e;--font:"Helvetica Neue",Helvetica,Arial,sans-serif}
-  html,body{background:var(--paper);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
-  body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}
-  .page{width:100%;max-width:900px;background:#fff;border:2px solid var(--ink);border-radius:22px;position:relative;overflow:hidden}
-  .page::before{content:"";position:absolute;inset:9px;border:1.5px dashed rgba(20,20,20,.35);border-radius:15px;pointer-events:none;z-index:2}
-  .topbar{position:relative;z-index:6;display:flex;align-items:center;gap:12px;padding:12px 20px 2px}
-  .topbar a.menu{font-size:12px;font-weight:700;color:var(--ink);text-decoration:none;border:2px solid var(--ink);border-radius:20px;padding:3px 12px;background:#fff}
+  :root{
+    --ink:#141414;--paper:#f7f6f3;--muted:#6b6b6b;--hl:#e6502e;
+    --font:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    /* one spacing scale for every section of the page */
+    --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;
+    --pad:28px;          /* shared horizontal inset for topbar / legend / caption / bar */
+    --btn:44px;--icon:19px;--r:24px;
+    --dial:clamp(150px,min(26vw,40vh),320px);
+    accent-color:var(--hl);
+  }
+  @media (max-width:640px){:root{--pad:16px;--btn:40px;--icon:18px;--r:18px;--s5:18px;--dial:clamp(130px,min(40vw,26vh),180px)}}
+  ::selection{background:var(--hl);color:#fff}
+  :focus-visible{outline:3px solid var(--hl);outline-offset:2px}
+  html,body{background:var(--paper);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow:hidden}
+  body{height:100vh;height:100dvh;display:flex;align-items:center;justify-content:center;padding:clamp(10px,2vw,26px)}
+  .page{width:100%;max-width:1120px;max-height:100%;margin:auto;display:flex;flex-direction:column;background:#fff;border:2px solid var(--ink);border-radius:var(--r);position:relative;overflow:hidden}
+  .page::before{content:"";position:absolute;inset:9px;border:1.5px dashed rgba(20,20,20,.35);border-radius:calc(var(--r) - 8px);pointer-events:none;z-index:2}
+  .topbar{flex:none;position:relative;z-index:12;display:flex;align-items:center;flex-wrap:wrap;gap:var(--s3);padding:var(--s5) var(--pad) var(--s2)}
+  .topbar a.menu{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink);text-decoration:none;border:2px solid var(--ink);border-radius:20px;padding:4px 12px;background:#fff}
+  .topbar a.menu svg{width:14px;height:14px}
   .topbar a.menu:hover{background:#f0efe9}
   .topbar .title{font-size:14px;font-weight:800;letter-spacing:.5px}
-  .topbar select{margin-left:auto;font-family:inherit;font-size:12px;font-weight:600;border:2px solid var(--ink);border-radius:20px;padding:3px 10px;background:#fff;cursor:pointer}
-  .stepno{position:absolute;top:44px;left:20px;z-index:6;font-size:46px;font-weight:800;letter-spacing:-2px;line-height:1}
-  .stepno small{font-size:15px;font-weight:700;letter-spacing:0;color:var(--muted);margin-left:4px}
-  #stage{display:block;width:100%;height:500px;touch-action:none;cursor:grab}
+  .sel{position:relative;margin-left:auto}
+  .selbtn{display:inline-flex;align-items:center;gap:var(--s2);font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:20px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+  .selbtn:hover{background:#f0efe9}
+  .selbtn svg{width:14px;height:14px;transition:transform .18s}
+  .sel.open .selbtn svg{transform:rotate(180deg)}
+  .selmenu{position:absolute;top:calc(100% + var(--s2));right:0;z-index:13;min-width:100%;display:flex;flex-direction:column;gap:2px;background:#fff;border:2px solid var(--ink);border-radius:16px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.16)}
+  .selmenu[hidden]{display:none}
+  .selmenu button{display:block;width:100%;font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);background:none;border:0;border-radius:11px;padding:9px 14px;cursor:pointer;text-align:left;white-space:nowrap}
+  .selmenu button:hover{background:#f0efe9}
+  .selmenu button[aria-selected=true]{background:var(--ink);color:#fff}
+  .view{position:relative;overflow:hidden;flex:0 1 auto;min-height:0;display:flex;flex-direction:column}
+  .stepno{position:absolute;top:var(--s3);left:var(--pad);z-index:6;display:flex;align-items:baseline;gap:var(--s1);font-size:clamp(30px,4.6vw,48px);font-weight:800;letter-spacing:-2px;line-height:1}
+  .stepno small{font-size:15px;font-weight:700;letter-spacing:0;color:var(--muted)}
+  #stage{flex:1 1 auto;display:block;width:100%;height:clamp(380px,68vh,780px);min-height:0;touch-action:none;cursor:grab}
   #stage:active{cursor:grabbing}
-  #inset{position:absolute;top:52px;right:16px;width:230px;height:230px;z-index:5;border-radius:50%;border:3px solid var(--ink);background:#fff;box-shadow:0 6px 22px rgba(0,0,0,.18)}
-  #detailtag{position:absolute;top:52px;right:16px;width:230px;height:230px;z-index:6;pointer-events:none}
-  #detailtag b{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:800;letter-spacing:1px;color:var(--muted);background:#fff;border:1px solid rgba(20,20,20,.25);border-radius:20px;padding:1px 9px}
-  #detailtag .cnt{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:15px;font-weight:800;color:var(--ink);background:rgba(255,255,255,.9);border-radius:8px;padding:0 8px;white-space:nowrap}
+  #inset{position:absolute;top:var(--s3);right:var(--pad);width:var(--dial);height:var(--dial);z-index:5;border-radius:50%;border:3px solid var(--ink);background:#fff;box-shadow:0 6px 22px rgba(0,0,0,.18)}
+  #detailtag{position:absolute;top:var(--s3);right:var(--pad);width:var(--dial);height:var(--dial);z-index:6;pointer-events:none}
+  #detailtag b{position:absolute;top:var(--s2);left:50%;transform:translateX(-50%);font-size:10px;font-weight:800;letter-spacing:1px;color:var(--muted);background:#fff;border:1px solid rgba(20,20,20,.25);border-radius:20px;padding:1px 9px}
+  #detailtag .cnt{position:absolute;bottom:var(--s2);left:50%;transform:translateX(-50%);font-size:15px;font-weight:800;color:var(--ink);background:rgba(255,255,255,.9);border-radius:8px;padding:0 8px;white-space:nowrap}
   #leads{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:visible}
-  #legend{position:relative;z-index:5;display:flex;flex-wrap:wrap;gap:6px;padding:10px 24px 0}
-  #legend:empty{padding:0}
-  .chip{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;background:#fff;border:1px solid rgba(20,20,20,.5);border-radius:7px;padding:2px 9px;line-height:1.5;width:max-content}
+  #legend{flex:none;position:relative;z-index:5;display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--pad) 0;overflow-y:auto;overscroll-behavior:contain}
+  .chip{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;background:#fff;border:1px solid rgba(20,20,20,.5);border-radius:7px;padding:2px 9px;line-height:1.5;width:max-content;max-width:min(260px,60vw)}
+  /* part tags float up-left of their item so the items behind stay visible */
+  .chip.tray{position:absolute;transform:translate(-100%,-100%);background:rgba(255,255,255,.88);z-index:5}
   .chip .q{font-weight:800}
   .chip code{font-family:inherit;color:var(--muted);font-weight:600}
   .chip .dot{width:9px;height:9px;border-radius:50%;background:var(--hl);flex:0 0 auto}
-  .cap{position:relative;z-index:5;padding:2px 26px 6px;min-height:56px}
+  .cap{flex:none;position:relative;z-index:5;padding:var(--s3) var(--pad) 0;min-height:58px}
   .cap .name{font-size:16px;font-weight:700}
-  .cap .txt{font-size:13px;color:var(--muted);line-height:1.5;margin-top:2px}
-  .bar{position:relative;z-index:5;display:flex;align-items:center;gap:11px;padding:6px 22px 16px}
-  button.nav{width:40px;height:40px;border:2px solid var(--ink);background:#fff;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .1s;color:var(--ink);flex:0 0 auto}
+  .cap .txt{font-size:13px;color:var(--muted);line-height:1.5;margin-top:var(--s1)}
+  .bar{flex:none;position:relative;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:var(--s3);padding:var(--s3) var(--pad) var(--s5)}
+  .bar .group{display:flex;align-items:center;gap:var(--s2);flex:0 0 auto}
+  button.nav{width:var(--btn);height:var(--btn);padding:0;border:2px solid var(--ink);background:#fff;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .1s;color:var(--ink);flex:0 0 auto}
+  button.nav svg{width:var(--icon);height:var(--icon)}
   button.nav:hover{background:#f0efe9}
   button.nav:active{transform:scale(.94)}
   button.nav:disabled{opacity:.28;cursor:default}
-  .slidewrap{flex:1;display:flex;align-items:center;gap:10px}
-  input[type=range]{flex:1;accent-color:#141414}
-  .spin.active,.detail.active,.labels.active{background:var(--ink);color:#fff}
+  button.nav.active{background:var(--ink);color:#fff}
+  button.nav:focus-visible{outline:3px solid var(--hl);outline-offset:2px}
+  /* step ruler */
+  .track{position:relative;flex:1 1 220px;min-width:150px;height:var(--btn);border:2px solid var(--ink);border-radius:13px;background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:space-between;padding:0 var(--s3);cursor:pointer}
+  .track:focus-within{outline:3px solid var(--hl);outline-offset:2px}
+  .track .fill{position:absolute;left:0;top:0;bottom:0;background:#f0efe9}
+  .track .ticks{position:absolute;left:0;right:0;bottom:0;height:9px;background:repeating-linear-gradient(90deg,rgba(20,20,20,.32) 0 1px,transparent 1px calc(100% / var(--steps,48)))}
+  .track .head{position:absolute;top:5px;bottom:5px;width:5px;border-radius:3px;background:var(--ink);transform:translateX(-50%)}
+  .track .lbl,.track .val{position:relative;font-size:12px;font-weight:700;pointer-events:none}
+  .track .lbl{color:var(--muted)}
+  .track .val{font-weight:800;font-variant-numeric:tabular-nums}
+  .track input[type=range]{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+  /* hover tooltips */
+  .tip{position:relative}
+  .tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%) translateY(3px);background:var(--ink);color:#fff;font-size:11px;font-weight:700;letter-spacing:.2px;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s,transform .12s;z-index:9}
+  .tip::before{content:"";position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--ink);opacity:0;transition:opacity .12s;z-index:9}
+  .tip:hover::after,.tip:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0);transition-delay:.2s}
+  .tip:hover::before,.tip:focus-visible::before{opacity:1;transition-delay:.2s}
+  .tip.start::after{left:0;transform:translateY(3px)}
+  .tip.start:hover::after,.tip.start:focus-visible::after{transform:translateY(0);transition-delay:.2s}
+  .tip.end::after{left:auto;right:0;transform:translateY(3px)}
+  .tip.end:hover::after,.tip.end:focus-visible::after{transform:translateY(0);transition-delay:.2s}
+  @media (max-width:640px){
+    #stage{height:clamp(320px,52vh,520px)}
+    .topbar .title{display:none}
+    .bar .track{order:-1;flex:1 0 100%}
+    .bar .steps{margin-left:auto}
+  }
+  body.partslist .view{flex:0 0 clamp(200px,32vh,320px)}
+  body.partslist #legend{flex:1 1 auto}
   body.nolabels #legend{display:none}
   body.nolabels #detailtag .cnt{display:none}
-  .hint{position:absolute;bottom:6px;right:16px;z-index:7;font-size:11px;color:#b3b3ad}
-  /* encouraging IKEA guy */
-  #buddy{position:absolute;right:12px;bottom:6px;z-index:8;width:118px;pointer-events:none;transform:translateX(150%);transition:transform .55s cubic-bezier(.2,.8,.2,1)}
-  #buddy.show{transform:translateX(0)}
-  #buddy.big{width:168px;right:36px}
+  .hint{position:absolute;left:var(--pad);bottom:var(--s3);z-index:7;font-size:11px;color:#b3b3ad;pointer-events:none}
+  @media (max-width:640px){.hint{display:none}}
+  /* encouraging IKEA guy — slides in from the left edge, half cut off */
+  #buddy{position:absolute;left:0;top:50%;z-index:8;width:clamp(130px,17vw,200px);pointer-events:none;transform:translate(-135%,-50%);transition:transform .55s cubic-bezier(.2,.8,.2,1)}
+  #buddy.show{transform:translate(-18%,-50%)}
+  #buddy.big{width:clamp(160px,22vw,250px)}
+  #buddy.big.show{transform:translate(-10%,-50%)}
   #buddy .guy{width:100%;transform-origin:50% 100%;animation:wiggle 1.9s ease-in-out infinite}
   #buddy .guy svg{display:block;width:100%;height:auto}
-  #buddy .speech{position:absolute;right:82px;bottom:118px;width:154px;background:#fff;border:2.5px solid var(--ink);border-radius:14px;padding:7px 11px;font-size:13px;font-weight:700;line-height:1.25;box-shadow:0 5px 16px rgba(0,0,0,.14)}
-  #buddy.big .speech{bottom:170px;right:120px}
-  #buddy .speech::after{content:"";position:absolute;right:-16px;bottom:14px;border:8px solid transparent;border-left-color:var(--ink)}
-  #buddy .speech::before{content:"";position:absolute;right:-11px;bottom:16px;border:6px solid transparent;border-left-color:#fff;z-index:1}
-  @keyframes wiggle{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+  /* the bubble sits to his right, so it has to fade rather than ride off the edge with him */
+  #buddy .speech{position:absolute;left:100%;top:var(--s2);margin-left:var(--s3);width:max-content;max-width:min(190px,42vw);background:#fff;border:2.5px solid var(--ink);border-radius:14px;padding:7px 11px;font-size:13px;font-weight:700;line-height:1.25;box-shadow:0 5px 16px rgba(0,0,0,.14);opacity:0;transition:opacity .2s}
+  #buddy.show .speech{opacity:1;transition:opacity .3s .25s}
+  #buddy .speech::after{content:"";position:absolute;left:-16px;top:14px;border:8px solid transparent;border-right-color:var(--ink)}
+  #buddy .speech::before{content:"";position:absolute;left:-11px;top:16px;border:6px solid transparent;border-right-color:#fff;z-index:1}
+  @media (max-width:640px){#buddy{width:clamp(92px,26vw,124px)}#buddy.big{width:clamp(112px,32vw,152px)}#buddy .speech{font-size:11px;padding:6px 9px}}
+  @keyframes wiggle{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+  /* finish celebration */
+  #confetti{position:absolute;inset:0;z-index:9;pointer-events:none;overflow:hidden}
+  #confetti i{position:absolute;top:-20px;left:var(--x);animation:cx var(--t) ease-in-out forwards}
+  #confetti b{display:block;width:var(--w);height:var(--h);border-radius:1px;background:var(--c);animation:cy var(--t) linear forwards,cfade var(--t) linear forwards}
+  @keyframes cx{to{transform:translateX(var(--dx))}}
+  @keyframes cy{to{transform:translateY(var(--dy)) rotate(var(--rot))}}
+  @keyframes cfade{0%,80%{opacity:1}100%{opacity:0}}
   @media (prefers-reduced-motion: reduce){#buddy .guy{animation:none}#buddy{transition:none}}
-  @media (max-width:600px){#buddy{width:88px}#buddy .speech{right:66px;bottom:92px;width:120px;font-size:11px}#legend{padding:8px 16px 0}}
-  @media (max-width:600px){#stage{height:400px}.stepno{font-size:34px}#inset,#detailtag{width:150px;height:150px}#legend{max-width:48%}}
 </style>
 </head>
 <body>
   <div class="page">
     <div class="topbar">
-      <a class="menu" href="index.html">&#8592; Menu</a>
+      <a class="menu" href="index.html" id="menulink">Menu</a>
       <span class="title" id="title">—</span>
-      <select id="modelsel"><option value="brimnes">BRIMNES bed frame</option><option value="lack">LACK coffee table</option></select>
+      <div class="sel" id="sel">
+        <button class="selbtn" id="selbtn" aria-haspopup="listbox" aria-expanded="false"><span id="sellabel">BRIMNES bed frame</span></button>
+        <div class="selmenu" id="selmenu" role="listbox" aria-label="Choose a product" hidden>
+          <button role="option" data-model="brimnes" aria-selected="true">BRIMNES bed frame</button>
+          <button role="option" data-model="lack" aria-selected="false">LACK coffee table</button>
+        </div>
+      </div>
     </div>
-    <div class="stepno" id="stepno">Parts</div>
     <div class="view">
+      <div class="stepno" id="stepno">Parts</div>
       <canvas id="stage"></canvas>
       <svg id="leads"><line id="lead" stroke="#141414" stroke-width="1.5" stroke-dasharray="4 3" x1="0" y1="0" x2="0" y2="0"/><circle id="target" r="7" fill="none" stroke="#e6502e" stroke-width="2" cx="-40" cy="-40"/></svg>
       <canvas id="inset"></canvas>
       <div id="detailtag"><b>DETAIL</b><span class="cnt" id="cnt"></span></div>
       <div id="buddy"><div class="speech" id="speech"></div><div class="guy" id="guy"></div></div>
+      <div id="confetti"></div>
+      <div class="hint">drag to rotate · scroll or pinch to zoom</div>
     </div>
     <div id="legend"></div>
     <div class="cap">
@@ -82,24 +152,47 @@
       <div class="txt" id="ctxt"></div>
     </div>
     <div class="bar">
-      <button class="nav" id="prev" aria-label="Previous">&#8592;</button>
-      <div class="slidewrap"><input type="range" id="slider" min="0" max="48" value="0" step="1" aria-label="Step"></div>
-      <button class="nav detail active" id="detail" aria-label="Toggle close-up" title="Close-up detail (on)">&#128269;</button>
-      <button class="nav labels active" id="labels" aria-label="Toggle item labels" title="Item labels (on)">&#127991;</button>
-      <button class="nav spin" id="spin" aria-label="Toggle spin" title="Auto-spin (off)">&#8635;</button>
-      <button class="nav" id="play" aria-label="Play">&#9658;</button>
-      <button class="nav" id="next" aria-label="Next">&#8594;</button>
+      <div class="group tools">
+        <button class="nav tip start" id="play" aria-label="Play" data-tip="Play through the steps"></button>
+        <button class="nav tip active" id="detail" aria-label="Toggle close-up" data-tip="Close-up detail: on"></button>
+        <button class="nav tip active" id="labels" aria-label="Toggle item labels" data-tip="Item labels: on"></button>
+      </div>
+      <div class="track" id="track">
+        <div class="fill" id="sfill"></div>
+        <div class="ticks"></div>
+        <span class="lbl">Step</span>
+        <span class="val" id="sval">Parts</span>
+        <div class="head" id="shead"></div>
+        <input type="range" id="slider" min="0" max="48" value="0" step="1" aria-label="Step">
+      </div>
+      <div class="group steps">
+        <button class="nav tip" id="prev" aria-label="Previous step" data-tip="Previous step"></button>
+        <button class="nav tip end" id="next" aria-label="Next step" data-tip="Next step"></button>
+      </div>
     </div>
-    <div class="hint">drag to rotate · scroll to zoom</div>
   </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const COMPACT=matchMedia('(max-width:640px)');
 const V=(x,y,z)=>new THREE.Vector3(x,y,z);
 const UP=V(0,1,0),ZAX=V(0,0,1);
 const A=(a,b,n)=>{if(n<=1)return[(a+b)/2];const o=[];for(let i=0;i<n;i++)o.push(a+(b-a)*i/(n-1));return o;};
 const mk=(px,py,pz,dx,dy,dz)=>({pos:[px,py,pz],dir:[dx,dy,dz]});
+
+// Lucide icon paths (lucide.dev) — inlined so the UI works offline
+const ICON={
+  'arrow-left':'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  'arrow-right':'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  pause:'<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
+  'zoom-in':'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/>',
+  tag:'<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+  'layout-grid':'<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  'chevron-down':'<path d="m6 9 6 6 6-6"/>'
+};
+const icon=n=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+ICON[n]+'</svg>';
 
 // ---------- shared render setup ----------
 const canvas=document.getElementById('stage'),insetC=document.getElementById('inset');
@@ -294,9 +387,9 @@ function buildBrimnes(){
     ['Metal bracket','121370','×2','cube'],['Corner bracket','116791','×2','cube']
   ];
   const trayLabels=[];
-  trayItems.forEach((it,i)=>{const col=i%5,row=Math.floor(i/5);const x=(col-2)*3.4,z=(row-1.5)*3.4;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x,-0.2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+'</code>'});});
+  trayItems.forEach((it,i)=>{const col=i%5,row=Math.floor(i/5);const x=(col-2)*7,z=(row-1.5)*4.2;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x-0.4,2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+'</code>'});});
   const cheers={1:{m:"Great start — let's build this!",p:'wave'},12:{m:"Sides going on. Nice work!",p:'happy'},16:{m:"The frame's coming together!",p:'thumbsUp'},30:{m:"Rock-solid support. Keep going!",p:'happy'},37:{m:"Slats in — almost a bed!",p:'thumbsUp'}};
-  return {name:'BRIMNES bed frame',count:48,P,steps:S,fx,vis,trayLabels,trayY:0.6,cheers,finish:"You did it! The BRIMNES bed is finished. 🎉"};
+  return {name:'BRIMNES bed frame',count:48,P,steps:S,fx,vis,trayLabels,trayY:1.7,trayFit:{v:7.5,x:16.5},cheers,finish:"You did it! The BRIMNES bed is finished. 🎉"};
 }
 
 // ================= MODEL: LACK coffee table =================
@@ -359,22 +452,22 @@ function buildLack(){
     ['Double-ended screw','115980','×4','longscrew'],['Screw','108530','×4','screw'],['Screw','109041','×4','screw'],['Angle bracket','120298','×4','lbracket']
   ];
   const trayLabels=[];
-  trayItems.forEach((it,i)=>{const col=i%4,row=Math.floor(i/4);const x=(col-1.5)*4,z=(row-0.5)*4;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x,-0.2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+'</code>'});});
+  trayItems.forEach((it,i)=>{const col=i%4,row=Math.floor(i/4);const x=(col-1.5)*6.4,z=(row-0.5)*4.6;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x-0.4,2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+'</code>'});});
   const cheers={1:{m:"Off to a great start!",p:'wave'},4:{m:"Rock-solid rail. Nice!",p:'thumbsUp'},7:{m:"Shelf's in — looking good!",p:'happy'}};
-  return {name:'LACK coffee table',count:8,P,steps:S,fx,vis,trayLabels,trayY:0.6,cheers,finish:"You did it! The LACK table is finished. 🎉"};
+  return {name:'LACK coffee table',count:8,P,steps:S,fx,vis,trayLabels,trayY:1.7,trayFit:{v:6.5,x:11},cheers,finish:"You did it! The LACK table is finished. 🎉"};
 }
 
 const BUILDERS={brimnes:buildBrimnes,lack:buildLack};
 
 // ---------- engine state ----------
 let MODEL=null,P={},idx=0;
-let theta=0.86,phi=1.02,spinOn=false,calloutOn=true,labelsOn=true;
+let theta=0.86,phi=1.02,calloutOn=true,labelsOn=true;
 const camera=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);
 const camI=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);
 let camCenter=V(0,2,0),camTarget=V(0,2,0),iCenter=V(0,2,0),iTarget=V(0,2,0);
 let halfView=13,halfTarget=13,iHalf=3,iHalfTarget=3,userZoom=1,baseHalf=13;
 let panX=0,panY=0,panXTarget=0,panYTarget=0;   // shift main view when a detail is shown
-let iTheta=0.9,iPhi=0.95;                       // fixed inset angle (independent of user spin)
+let iTheta=0.9,iPhi=0.95;                       // fixed inset angle (independent of the user's viewing angle)
 function orbit(cam,center,half,aspect,th,ph,pX,pY){
   const R=80;
   cam.position.set(center.x+R*Math.sin(ph)*Math.cos(th),center.y+R*Math.cos(ph),center.z+R*Math.sin(ph)*Math.sin(th));
@@ -390,7 +483,8 @@ function insetAngles(d){
   return{th:1.28,ph:0.95};                     // driven along X -> view broadside from the Z side
 }
 function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);const s=insetC.clientWidth;insetR.setSize(s,s,false);}
-addEventListener('resize',resize);
+let reserveT=null;
+addEventListener('resize',()=>{resize();clearTimeout(reserveT);reserveT=setTimeout(reserveRows,150);});
 
 // ---------- markers ----------
 let markers=[],arrows=[];
@@ -438,18 +532,46 @@ function updateLeader(){
   const w=canvas.clientWidth,h=canvas.clientHeight;
   const v=primaryMarker.clone().project(camera);
   const x=(v.x*0.5+0.5)*w,y=(-v.y*0.5+0.5)*h;
-  const size=insetC.clientWidth,margin=16;
-  const cx=w-margin-size/2,cy=52+size/2;
+  const size=insetC.clientWidth;
+  const ir=insetC.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
+  const cx=ir.left-cr.left+size/2,cy=ir.top-cr.top+size/2;
   target.setAttribute('cx',x);target.setAttribute('cy',y);
   lead.setAttribute('x1',cx);lead.setAttribute('y1',cy+size/2-6);lead.setAttribute('x2',x);lead.setAttribute('y2',y);
 }
 const trayLabelPool=[];
+const TAG_OFF=6;   // how far up-left of its item a part tag sits, so items behind stay visible
 function positionTrayLabels(){
-  if(idx!==0||!labelsOn){trayLabelPool.forEach(d=>d.style.display='none');return;}
+  if(idx!==0||!labelsOn||COMPACT.matches){trayLabelPool.forEach(d=>d.style.display='none');return;}
   const w=canvas.clientWidth,h=canvas.clientHeight,labels=MODEL.trayLabels;
-  while(trayLabelPool.length<labels.length){const d=document.createElement('div');d.className='chip';d.style.position='absolute';d.style.transform='translate(-50%,0)';leads.parentElement.appendChild(d);trayLabelPool.push(d);}
-  labels.forEach((l,i)=>{const d=trayLabelPool[i];d.innerHTML=l.text;const v=l.anchor.clone().project(camera);if(v.z>1){d.style.display='none';return;}d.style.display='flex';d.style.left=((v.x*0.5+0.5)*w)+'px';d.style.top=((-v.y*0.5+0.5)*h+8)+'px';d.style.zIndex=5;});
+  while(trayLabelPool.length<labels.length){const d=document.createElement('div');d.className='chip tray';d.style.display='flex';leads.parentElement.appendChild(d);trayLabelPool.push(d);}
+  const wanted=[];
+  labels.forEach((l,i)=>{
+    const d=trayLabelPool[i];
+    if(d._text!==l.text){d.innerHTML=l.text;d._text=l.text;d._w=d.offsetWidth;d._h=d.offsetHeight;}
+    const v=l.anchor.clone().project(camera);
+    if(v.z>1){d.style.display='none';return;}
+    d.style.display='flex';
+    wanted.push({d,w:d._w,h:d._h,x:(v.x*0.5+0.5)*w-TAG_OFF,y:(-v.y*0.5+0.5)*h-TAG_OFF});
+  });
+  // greedy top-down de-collision: a tag that would cover another one drops below it
+  wanted.sort((a,b)=>a.y-b.y);
+  const sr=stepnoEl.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
+  const placed=[{l:sr.left-cr.left-10,r:sr.right-cr.left+10,t:sr.top-cr.top-8,btm:sr.bottom-cr.top+8}];
+  wanted.forEach(b=>{
+    for(let guard=0;guard<24;guard++){
+      let hit=false;
+      placed.forEach(p=>{if(b.x-b.w<p.r&&p.l<b.x&&b.y-b.h<p.btm&&p.t<b.y){b.y=p.btm+b.h+3;hit=true;}});
+      if(!hit)break;
+    }
+    placed.push({l:b.x-b.w,r:b.x,t:b.y-b.h,btm:b.y});
+    b.d.style.left=b.x+'px';b.d.style.top=b.y+'px';
+  });
 }
+
+// keep the whole parts tray in frame whatever the canvas aspect is
+const TRAY_SMALL=0.55;   // narrow screens list the parts below, so the tray itself can sit tighter
+function trayScale(){return COMPACT.matches?TRAY_SMALL:1;}
+function trayHalf(){const f=MODEL.trayFit;if(!f)return 12.5;const k=trayScale();return Math.max(f.v*k,f.x*k/(canvas.clientWidth/Math.max(1,canvas.clientHeight)));}
 
 // ---------- animation ----------
 const clock=new THREE.Clock();
@@ -457,7 +579,7 @@ let stepT0=0,newParts=[];
 function ease(u){return u<0?0:u>1?1:u*u*(3-2*u);}
 function loop(){
   const tt=clock.getElapsedTime();
-  if(spinOn&&!dragging&&!REDUCED)theta+=0.0016;
+  if(idx===0)baseHalf=trayHalf();
   halfTarget=baseHalf/userZoom;
   camCenter.lerp(camTarget,0.12);iCenter.lerp(iTarget,0.14);
   halfView+=(halfTarget-halfView)*0.12;iHalf+=(iHalfTarget-iHalf)*0.14;
@@ -468,9 +590,9 @@ function loop(){
   arrows.forEach(a=>{const{p,out}=a.userData;const bob=REDUCED?0:(Math.sin(tt*2.4)*0.5+0.5)*0.35;a.position.copy(p).addScaledVector(out,1.55+bob);a.visible=prog>0.15;});
   positionTrayLabels();
   const show=calloutOn&&idx!==0&&primaryMarker;
-  panXTarget=show?0.3:0;panYTarget=show?0.18:0;
+  panXTarget=0;panYTarget=show?0.12:0;
   panX+=(panXTarget-panX)*0.12;panY+=(panYTarget-panY)*0.12;
-  const w=canvas.clientWidth,h=canvas.clientHeight;
+  const w=canvas.clientWidth,h=Math.max(1,canvas.clientHeight);
   orbit(camera,camCenter,halfView,w/h,theta,phi,panX,panY);renderer.render(scene,camera);
   if(show){orbit(camI,iCenter,iHalf,1,iTheta,iPhi,0,0);insetR.render(scene,camI);}
   updateLeader();
@@ -480,47 +602,112 @@ function loop(){
 // ---------- UI ----------
 const stepnoEl=document.getElementById('stepno'),nameEl=document.getElementById('cname'),txtEl=document.getElementById('ctxt'),
  prevB=document.getElementById('prev'),nextB=document.getElementById('next'),playB=document.getElementById('play'),
- spinB=document.getElementById('spin'),detailB=document.getElementById('detail'),slider=document.getElementById('slider'),
- titleEl=document.getElementById('title'),modelSel=document.getElementById('modelsel');
+ detailB=document.getElementById('detail'),slider=document.getElementById('slider'),
+ titleEl=document.getElementById('title'),selEl=document.getElementById('sel'),selBtn=document.getElementById('selbtn'),
+ selMenu=document.getElementById('selmenu'),selLabel=document.getElementById('sellabel'),
+ labelsB=document.getElementById('labels'),menuLink=document.getElementById('menulink'),
+ capEl=document.querySelector('.cap'),trackEl=document.getElementById('track'),fillEl=document.getElementById('sfill'),headEl=document.getElementById('shead'),valEl=document.getElementById('sval');
+prevB.innerHTML=icon('arrow-left');nextB.innerHTML=icon('arrow-right');playB.innerHTML=icon('play');
+detailB.innerHTML=icon('zoom-in');labelsB.innerHTML=icon('tag');
+menuLink.innerHTML=icon('layout-grid')+'Menu';
+selBtn.insertAdjacentHTML('beforeend',icon('chevron-down'));
 function setVis(n){for(const k in P)P[k].obj.visible=false;const s=MODEL.vis(n);s.forEach(k=>{if(P[k])P[k].obj.visible=true;});}
 // ---------- the encouraging IKEA guy ----------
 const buddyEl=document.getElementById('buddy'),speechEl=document.getElementById('speech'),guyEl=document.getElementById('guy');
+// The IKEA manual figure: each pose is one continuous silhouette, plus the face
+// line, eye and the split between the legs drawn inside it.
+const BODY={
+  // arm out to the side, other hand on the hip
+  point:'M300 30 C232 34 204 104 220 162 C230 212 238 258 240 292'
+    +' C150 328 18 402 14 452 C10 502 92 560 150 600 C142 622 136 640 140 650'
+    +' C152 664 172 656 178 640 L184 975 L392 975 L580 975 L497 872'
+    +' C504 700 502 560 500 470 C580 486 664 480 742 478'
+    +' C768 476 768 424 742 422 C650 368 520 320 400 268'
+    +' L408 152 L462 136 C438 66 366 28 300 30 Z',
+  // one arm raised in a wave
+  wave:'M300 30 C232 34 204 104 220 162 C230 212 238 258 240 292'
+    +' C150 328 18 402 14 452 C10 502 92 560 150 600 C142 622 136 640 140 650'
+    +' C152 664 172 656 178 640 L184 975 L392 975 L580 975 L497 872'
+    +' C504 700 502 560 500 466 C556 396 630 244 656 152 C664 124 626 112 610 140'
+    +' C566 226 466 320 400 268 L408 152 L462 136 C438 66 366 28 300 30 Z'
+};
+const LEGSPLIT={point:'M388 706 L388 975',wave:'M388 706 L388 975'};
 function buddySVG(pose){
-  const arms={
-    happy:'<rect x="14" y="84" width="12" height="50" rx="6" transform="rotate(14 20 88)"/><circle cx="17" cy="136" r="7"/><rect x="94" y="84" width="12" height="50" rx="6" transform="rotate(-14 100 88)"/><circle cx="103" cy="136" r="7"/>',
-    thumbsUp:'<rect x="16" y="84" width="12" height="50" rx="6" transform="rotate(14 22 88)"/><circle cx="19" cy="136" r="7"/><rect x="86" y="30" width="12" height="56" rx="6" transform="rotate(22 92 86)"/><circle cx="99" cy="30" r="8"/>',
-    wave:'<rect x="16" y="84" width="12" height="50" rx="6" transform="rotate(14 22 88)"/><circle cx="19" cy="136" r="7"/><rect x="88" y="24" width="12" height="58" rx="6" transform="rotate(-18 94 82)"/><circle cx="86" cy="26" r="8"/>',
-    celebrate:'<rect x="20" y="24" width="12" height="60" rx="6" transform="rotate(-28 26 84)"/><circle cx="12" cy="26" r="8"/><rect x="88" y="24" width="12" height="60" rx="6" transform="rotate(28 94 84)"/><circle cx="108" cy="26" r="8"/>'
-  };
-  const spark=pose==='celebrate'?'<g stroke-width="3"><path d="M6 58 l0 11 M1 63.5 l11 0"/><path d="M114 54 l0 11 M108.5 59.5 l11 0"/><path d="M100 6 l0 9 M95.5 10.5 l9 0"/></g>':'';
-  return '<svg viewBox="0 0 120 210" fill="#fff" stroke="#141414" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">'
-    +'<rect x="45" y="150" width="12" height="52" rx="5"/><rect x="63" y="150" width="12" height="52" rx="5"/>'
-    +(arms[pose]||arms.happy)
-    +'<path d="M60 64 C30 66 18 92 30 118 C34 132 45 134 47 158 L73 158 C75 134 86 132 90 118 C102 92 90 66 60 64 Z"/>'
-    +'<ellipse cx="58" cy="40" rx="25" ry="27"/><path d="M79 30 L94 33 L82 45 Z"/>'
-    +'<circle cx="52" cy="38" r="3" fill="#141414" stroke="none"/><circle cx="64" cy="38" r="3" fill="#141414" stroke="none"/>'
-    +'<path d="M49 50 Q58 60 70 49" fill="none" stroke-width="3.5"/>'+spark+'</svg>';
+  const key=BODY[pose]?pose:(pose==='thumbsUp'?'wave':'point');
+  const fingers=key==='point'?'<path d="M782 420 L842 408 M784 480 L842 492"/>':'';
+  return '<svg viewBox="0 0 862 1010" fill="none" stroke="#141414" stroke-width="20" stroke-linejoin="round" stroke-linecap="round">'
+    +'<g transform="rotate(5 400 975)">'
+    +'<path fill="#fff" d="'+BODY[key]+'"/>'
+    +'<path d="M268 92 C246 160 288 214 352 212 C392 210 404 190 408 152"/>'
+    +'<path d="'+LEGSPLIT[key]+'"/>'
+    +'<circle cx="360" cy="100" r="15" fill="#141414" stroke="none"/>'
+    +fingers+'</g></svg>';
+}
+
+// ---------- finish celebration ----------
+const confettiEl=document.getElementById('confetti'),CONFETTI=['#e6502e','#ff7a45','#f2a03d','#c8401f'];
+let confettiTimer=null;
+function confetti(){
+  clearTimeout(confettiTimer);confettiEl.innerHTML='';
+  if(REDUCED)return;
+  const w=confettiEl.clientWidth,h=confettiEl.clientHeight;
+  let html='';
+  for(let i=0;i<90;i++){
+    const d=(Math.random()*0.9).toFixed(2),t=(1.5+Math.random()*1.1).toFixed(2);
+    const x=Math.round(Math.random()*w),dx=Math.round((Math.random()*2-1)*70);
+    const dy=Math.round(h+40+Math.random()*40),rot=Math.round((Math.random()*2-1)*720);
+    html+='<i style="--x:'+x+'px;--dx:'+dx+'px;--t:'+t+'s;animation-delay:'+d+'s">'
+      +'<b style="--dy:'+dy+'px;--rot:'+rot+'deg;--c:'+CONFETTI[i%CONFETTI.length]
+      +';--w:'+(3+Math.round(Math.random()*3))+'px;--h:'+(5+Math.round(Math.random()*4))+'px;'
+      +'animation-delay:'+d+'s"></b></i>';
+  }
+  confettiEl.innerHTML=html;
+  confettiTimer=setTimeout(()=>confettiEl.innerHTML='',4200);
 }
 function updateBuddy(n){
   const finish=n===MODEL.count&&MODEL.finish;
   const cheer=!finish&&MODEL.cheers&&MODEL.cheers[n];
-  if(finish){guyEl.innerHTML=buddySVG('celebrate');speechEl.textContent=MODEL.finish;buddyEl.classList.add('show','big');}
+  if(finish){guyEl.innerHTML=buddySVG('point');speechEl.textContent=MODEL.finish;buddyEl.classList.add('show','big');}
   else if(cheer){guyEl.innerHTML=buddySVG(cheer.p);speechEl.textContent=cheer.m;buddyEl.classList.add('show');buddyEl.classList.remove('big');}
   else buddyEl.classList.remove('show','big');
 }
-function buildLegend(step){legendEl.innerHTML='';(step.it||[]).forEach(it=>{const c=document.createElement('div');c.className='chip';c.innerHTML='<span class="dot"></span><span class="q">'+(it.qty>1?it.qty+'× ':'')+'</span>'+it.name+(it.part?' <code>'+it.part+'</code>':'');legendEl.appendChild(c);});}
+function buildLegend(step,n){
+  legendEl.innerHTML='';
+  const chip=html=>{const c=document.createElement('div');c.className='chip';c.innerHTML=html;legendEl.appendChild(c);};
+  // narrow screens have no room for floating part tags, so the parts list moves into the legend
+  if(n===0){if(COMPACT.matches)MODEL.trayLabels.forEach(l=>chip('<span class="dot"></span>'+l.text));return;}
+  (step.it||[]).forEach(it=>chip('<span class="dot"></span><span class="q">'+(it.qty>1?it.qty+'× ':'')+'</span>'+it.name+(it.part?' <code>'+it.part+'</code>':'')));
+}
+function renderStep(n){
+  const st=MODEL.steps[n];
+  nameEl.textContent=(n===0||n===MODEL.finishedIdx)?st.name:(n+'. '+st.name);
+  txtEl.textContent=st.txt;
+  buildLegend(st,n);
+}
+// A step with no part chips would otherwise collapse that row and shove the whole
+// page up, so both rows are pinned to the tallest they get for this model + width.
+function reserveRows(){
+  if(!MODEL)return;
+  legendEl.style.minHeight=capEl.style.minHeight='';
+  let lg=0,cp=0;
+  for(let n=1;n<=MODEL.count;n++){
+    if(!MODEL.steps[n])continue;
+    renderStep(n);
+    lg=Math.max(lg,legendEl.offsetHeight);cp=Math.max(cp,capEl.offsetHeight);
+  }
+  legendEl.style.minHeight=lg+'px';capEl.style.minHeight=cp+'px';
+  renderStep(idx);
+}
 function go(i){
-  const cnt=MODEL.count;idx=Math.max(0,Math.min(cnt,i));userZoom=1;
+  const cnt=MODEL.count,prev=idx;idx=Math.max(0,Math.min(cnt,i));userZoom=1;
   const step=MODEL.steps[idx];
   const fin=idx===MODEL.finishedIdx;
-  stepnoEl.innerHTML=idx===0?'Parts':(fin?'&#10003;':(idx+'<small>/ '+MODEL.realCount+'</small>'));
-  nameEl.textContent=(idx===0||fin)?step.name:(idx+'. '+step.name);
-  txtEl.textContent=step.txt;
+  stepnoEl.innerHTML=idx===0?'Parts':(fin?'Completed!':(idx+'<small>/ '+MODEL.realCount+'</small>'));
   const before=MODEL.vis(idx-1<0?0:idx-1);
   setVis(idx);tray.visible=(idx===0);
   newParts=[...MODEL.vis(idx)].filter(k=>!before.has(k));stepT0=clock.getElapsedTime();
-  const groups=buildFits(idx);buildLegend(step);
-  if(idx===0){camTarget.set(0,MODEL.trayY,0);baseHalf=12.5;primaryMarker=null;cntEl.textContent='';}
+  const groups=buildFits(idx);renderStep(idx);
+  if(idx===0){tray.scale.setScalar(trayScale());camTarget.set(0,MODEL.trayY*trayScale(),0);baseHalf=trayHalf();primaryMarker=null;cntEl.textContent='';}
   else{
     const f=focusFor(idx,before);camTarget.copy(f.center);
     baseHalf=Math.min(19,Math.max(5,f.radius*1.85+2.6));
@@ -533,8 +720,16 @@ function go(i){
       const q=cap?cap.qty:first.marks.length;cntEl.textContent=(q>1?q+'× ':'')+first.part;
     }else{primaryMarker=null;cntEl.textContent='';}
   }
+  document.body.classList.toggle('partslist',idx===0&&COMPACT.matches);
   updateBuddy(idx);
-  prevB.disabled=idx===0;nextB.disabled=idx===cnt;slider.value=idx;slider.max=cnt;
+  if(fin&&prev!==idx)confetti();else if(!fin&&confettiEl.firstChild){clearTimeout(confettiTimer);confettiEl.innerHTML='';}
+  prevB.disabled=idx===0;nextB.disabled=idx===cnt;
+  slider.value=idx;slider.max=cnt;
+  trackEl.style.setProperty('--steps',cnt);
+  const pct=idx/cnt*100;
+  fillEl.style.width=pct+'%';
+  headEl.style.left='clamp(3px, '+pct+'%, calc(100% - 3px))';
+  valEl.textContent=idx===0?'Parts':(fin?'Finished':idx+' / '+MODEL.realCount);
 }
 function loadModel(key){
   while(content.children.length)content.remove(content.children[0]);
@@ -548,26 +743,56 @@ function loadModel(key){
   MODEL.vis=n=>n>=fin?_vis(rc):_vis(n);
   MODEL.fx=n=>n>=fin?[]:_fx(n);
   titleEl.textContent=MODEL.name;document.title='IKEA — '+MODEL.name;
-  modelSel.value=key;go(0);
+  selLabel.textContent=MODEL.name;
+  selMenu.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',b.dataset.model===key));
+  go(0);reserveRows();
 }
 prevB.onclick=()=>go(idx-1);nextB.onclick=()=>go(idx+1);
 slider.oninput=()=>go(+slider.value);
 let playing=false,timer=null;
-playB.onclick=()=>{playing=!playing;playB.innerHTML=playing?'&#10074;&#10074;':'&#9658;';if(playing)timer=setInterval(()=>go(idx>=MODEL.count?0:idx+1),2800);else clearInterval(timer);};
-spinB.onclick=()=>{spinOn=!spinOn;spinB.classList.toggle('active',spinOn);spinB.title='Auto-spin ('+(spinOn?'on':'off')+')';};
-detailB.onclick=()=>{calloutOn=!calloutOn;detailB.classList.toggle('active',calloutOn);detailB.title='Close-up detail ('+(calloutOn?'on':'off')+')';};
-const labelsB=document.getElementById('labels');
-labelsB.onclick=()=>{labelsOn=!labelsOn;labelsB.classList.toggle('active',labelsOn);document.body.classList.toggle('nolabels',!labelsOn);labelsB.title='Item labels ('+(labelsOn?'on':'off')+')';};
-modelSel.onchange=()=>{const k=modelSel.value;history.replaceState(null,'','?model='+k);loadModel(k);};
+playB.onclick=()=>{playing=!playing;playB.innerHTML=icon(playing?'pause':'play');playB.dataset.tip=playB.ariaLabel=playing?'Pause':'Play through the steps';if(playing)timer=setInterval(()=>go(idx>=MODEL.count?0:idx+1),2800);else clearInterval(timer);};
+detailB.onclick=()=>{calloutOn=!calloutOn;detailB.classList.toggle('active',calloutOn);detailB.dataset.tip='Close-up detail: '+(calloutOn?'on':'off');};
+labelsB.onclick=()=>{labelsOn=!labelsOn;labelsB.classList.toggle('active',labelsOn);document.body.classList.toggle('nolabels',!labelsOn);labelsB.dataset.tip='Item labels: '+(labelsOn?'on':'off');};
+const openSel=o=>{selEl.classList.toggle('open',o);selMenu.hidden=!o;selBtn.setAttribute('aria-expanded',o);};
+selBtn.onclick=e=>{e.stopPropagation();openSel(selMenu.hidden);};
+selMenu.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  openSel(false);selBtn.focus();
+  const k=b.dataset.model;
+  if(k===modelKey)return;
+  modelKey=k;history.replaceState(null,'','?model='+k);loadModel(k);
+});
+addEventListener('click',()=>openSel(false));
+COMPACT.addEventListener('change',()=>{go(idx);reserveRows();});
 
 let dragging=false,lx=0,ly=0;
-canvas.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;canvas.setPointerCapture(e.pointerId);});
-canvas.addEventListener('pointermove',e=>{if(!dragging)return;theta-=(e.clientX-lx)*0.008;phi-=(e.clientY-ly)*0.008;phi=Math.max(0.22,Math.min(1.46,phi));lx=e.clientX;ly=e.clientY;});
-canvas.addEventListener('pointerup',()=>dragging=false);
-canvas.addEventListener('wheel',e=>{e.preventDefault();userZoom*=(e.deltaY>0?0.9:1.1);userZoom=Math.max(0.5,Math.min(3.2,userZoom));},{passive:false});
+const pointers=new Map();let pinchDist=0;
+const setZoom=z=>{userZoom=Math.max(0.5,Math.min(3.2,z));};
+function spread(){const[a,b]=[...pointers.values()];return Math.hypot(a.x-b.x,a.y-b.y);}
+canvas.addEventListener('pointerdown',e=>{
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});canvas.setPointerCapture(e.pointerId);
+  if(pointers.size===2){dragging=false;pinchDist=spread();}
+  else if(pointers.size===1){dragging=true;lx=e.clientX;ly=e.clientY;}
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId))return;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size>=2){const d=spread();if(pinchDist>0&&d>0)setZoom(userZoom*d/pinchDist);pinchDist=d;return;}
+  if(!dragging)return;
+  theta-=(e.clientX-lx)*0.008;phi-=(e.clientY-ly)*0.008;phi=Math.max(0.22,Math.min(1.46,phi));lx=e.clientX;ly=e.clientY;
+});
+const endPointer=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pinchDist=0;if(!pointers.size)dragging=false;
+  else{const[p]=[...pointers.values()];dragging=true;lx=p.x;ly=p.y;}};
+canvas.addEventListener('pointerup',endPointer);
+canvas.addEventListener('pointercancel',endPointer);
+canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(userZoom*(e.deltaY>0?0.9:1.1));},{passive:false});
+addEventListener('keydown',e=>{
+  if(/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement&&document.activeElement.tagName))return;
+  if(e.key==='Escape'){openSel(false);return;}
+  if(e.key==='ArrowLeft')go(idx-1);else if(e.key==='ArrowRight')go(idx+1);
+});
 
-const startKey=new URLSearchParams(location.search).get('model')==='lack'?'lack':'brimnes';
-resize();loadModel(startKey);loop();
+let modelKey=new URLSearchParams(location.search).get('model')==='lack'?'lack':'brimnes';
+resize();loadModel(modelKey);loop();
 </script>
 </body>
 </html>
