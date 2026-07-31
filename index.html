@@ -18,8 +18,9 @@
   a.card{display:block;text-decoration:none;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:22px;overflow:hidden;position:relative;transition:transform .12s,box-shadow .12s}
   a.card:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,.12)}
   a.card::before{content:"";position:absolute;inset:8px;border:1.5px dashed rgba(20,20,20,.3);border-radius:15px;pointer-events:none}
-  .art{height:190px;display:flex;align-items:center;justify-content:center;border-bottom:2px solid var(--ink)}
+  .art{height:190px;display:flex;align-items:center;justify-content:center;border-bottom:2px solid var(--ink);background:#fff}
   .art svg{width:78%;height:78%}
+  .art img{width:100%;height:100%;object-fit:contain;padding:14px}
   .meta{padding:14px 18px 18px}
   .meta .name{font-size:20px;font-weight:800}
   .meta .sub{font-size:13px;color:var(--muted);margin-top:3px}
@@ -35,19 +36,11 @@
     </div>
     <div class="grid">
       <a class="card" href="viewer.html?model=brimnes">
-        <div class="art"><svg viewBox="0 0 200 120" fill="none" stroke="#141414" stroke-width="2.4" stroke-linejoin="round">
-          <path d="M20 78 L20 100 M180 78 L180 100 M20 78 L110 55 L190 70 L190 92 L100 100 L20 92 Z"/>
-          <path d="M110 55 L110 78 M100 100 L100 78 L20 78 M190 70 L110 78"/>
-          <path d="M30 84 L95 96 M45 82 L95 92"/>
-        </svg></div>
+        <div class="art"><img src="assets/brimnes.png" alt="BRIMNES bed frame with storage"></div>
         <div class="meta"><div class="name">BRIMNES</div><div class="sub">Bed frame with storage</div><span class="steps">48 steps</span></div>
       </a>
       <a class="card" href="viewer.html?model=lack">
-        <div class="art"><svg viewBox="0 0 200 120" fill="none" stroke="#141414" stroke-width="2.4" stroke-linejoin="round">
-          <path d="M30 45 L120 30 L185 45 L95 60 Z"/>
-          <path d="M35 47 L35 95 M92 60 L92 108 M120 55 L120 100 M180 47 L180 92"/>
-          <path d="M35 78 L92 88 L120 82 L180 72"/>
-        </svg></div>
+        <div class="art"><img src="assets/lack.png" alt="LACK coffee table"></div>
         <div class="meta"><div class="name">LACK</div><div class="sub">Coffee table with shelf</div><span class="steps">8 steps</span></div>
       </a>
     </div>
