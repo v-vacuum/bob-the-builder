@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IKEA 3D assembly — choose a product</title>
-<meta name="description" content="Interactive 3D assembly instructions for IKEA furniture. Rotate any step, zoom into any screw.">
+<title>Assembly guides — choose a product</title>
+<meta name="description" content="Interactive 3D assembly instructions for flat-pack furniture. Rotate any step, zoom into any screw.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <meta name="theme-color" content="#f7f6f3">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Assembly guides — interactive 3D IKEA instructions">
+<meta property="og:title" content="Assembly guides — interactive 3D instructions">
 <meta property="og:description" content="Rotate any step. Zoom into any screw.">
-<meta property="og:image" content="assets/og.png">
+<meta property="og:image" content="https://bob-builds.vercel.app/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Line drawing of the IKEA figure puzzling over a manual next to two boards.">
+<meta property="og:image:alt" content="Line drawing of a figure puzzling over a manual next to two boards.">
 <meta name="twitter:card" content="summary_large_image">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -38,6 +38,7 @@
   .meta .sub{font-size:13px;color:var(--muted);margin-top:3px}
   .meta .steps{display:inline-block;margin-top:10px;font-size:12px;font-weight:700;border:2px solid var(--ink);border-radius:20px;padding:3px 12px}
   .foot{text-align:center;color:#b3b3ad;font-size:12px;margin-top:22px}
+  .foot.disclaimer{margin-top:8px;font-size:11px}
 </style>
 </head>
 <body>
@@ -57,6 +58,7 @@
       </a>
     </div>
     <div class="foot">Drag to rotate · scroll to zoom · toggle the close-up detail circle for each fastener</div>
+    <div class="foot disclaimer">A fan-made project. Not affiliated with, endorsed by or sponsored by Inter IKEA Systems B.V.</div>
   </div>
 </body>
 </html>
