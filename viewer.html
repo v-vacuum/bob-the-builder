@@ -38,6 +38,8 @@
   .selmenu button{display:block;width:100%;font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);background:none;border:0;border-radius:11px;padding:9px 14px;cursor:pointer;text-align:left;white-space:nowrap}
   .selmenu button:hover{background:#f0efe9}
   .selmenu button[aria-selected=true]{background:var(--ink);color:#fff}
+  /* The leader line, the target ring and the parts tags are all computed in canvas
+     coordinates, so the box they are positioned against has to be the canvas box. */
   .view{position:relative;overflow:hidden;flex:0 1 auto;min-height:0;display:flex;flex-direction:column}
   .stepno{position:absolute;top:var(--s3);left:var(--pad);z-index:6;display:flex;align-items:baseline;gap:var(--s1);font-size:clamp(30px,4.6vw,48px);font-weight:800;letter-spacing:-2px;line-height:1}
   .stepno small{font-size:15px;font-weight:700;letter-spacing:0;color:var(--muted)}
@@ -50,11 +52,12 @@
   #leads{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:visible}
   #legend{flex:none;position:relative;z-index:5;display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--pad) 0;overflow-y:auto;overscroll-behavior:contain}
   .chip{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;background:#fff;border:1px solid rgba(20,20,20,.5);border-radius:7px;padding:2px 9px;line-height:1.5;width:max-content;max-width:min(260px,60vw)}
-  /* part tags float up-left of their item so the items behind stay visible */
-  .chip.tray{position:absolute;transform:translate(-100%,-100%);background:rgba(255,255,255,.88);z-index:5}
   .chip .q{font-weight:800}
   .chip code{font-family:inherit;color:var(--muted);font-weight:600}
   .chip .dot{width:9px;height:9px;border-radius:50%;background:var(--hl);flex:0 0 auto}
+  /* parts-screen tags: shown only where one fits, so the layout stays readable */
+  .chip.tag{position:absolute;transform:translate(-50%,0);pointer-events:none;padding:2px 9px 2px 7px;gap:7px;border-radius:8px;border-color:var(--ink);background:rgba(255,255,255,.9);box-shadow:0 1px 3px rgba(0,0,0,.1);white-space:nowrap;z-index:5}
+  .chip.tag .tdot{width:7px;height:7px;border-radius:50%;background:var(--hl);flex:0 0 auto}
   .cap{flex:none;position:relative;z-index:5;padding:var(--s3) var(--pad) 0;min-height:58px}
   .cap .name{font-size:16px;font-weight:700}
   .cap .txt{font-size:13px;color:var(--muted);line-height:1.5;margin-top:var(--s1)}
@@ -141,7 +144,7 @@
       <canvas id="stage"></canvas>
       <svg id="leads"><line id="lead" stroke="#141414" stroke-width="1.5" stroke-dasharray="4 3" x1="0" y1="0" x2="0" y2="0"/><circle id="target" r="7" fill="none" stroke="#e6502e" stroke-width="2" cx="-40" cy="-40"/></svg>
       <canvas id="inset"></canvas>
-      <div id="detailtag"><b>DETAIL</b><span class="cnt" id="cnt"></span></div>
+      <div id="detailtag"><b id="detaillabel">DETAIL</b><span class="cnt" id="cnt"></span></div>
       <div id="buddy"><div class="speech" id="speech"></div><div class="guy" id="guy"></div></div>
       <div id="confetti"></div>
       <div class="hint">drag to rotate · scroll or pinch to zoom</div>
@@ -210,15 +213,99 @@ const darkMat=new THREE.MeshBasicMaterial({color:0x141414});
 const hlMat=new THREE.MeshBasicMaterial({color:0xe6502e,side:THREE.DoubleSide});
 const holeMat=new THREE.MeshBasicMaterial({color:0x141414,side:THREE.DoubleSide,transparent:true,opacity:.8,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
 const lineMat=new THREE.LineBasicMaterial({color:0x141414});
+// LACK is modelled at true scale: 1 world unit = 50 mm, so its fittings carry real
+// millimetre sizes while the BRIMNES shapes keep their original stylised ones.
+const MM=1/50;
 // per-kind radius of the pilot hole drawn at the target point, and the length the
 // fitting occupies along its insertion axis (used to park the arrow clear of the head)
-const HOLE_R={dowel:.17,screw:.13,longscrew:.13,bolt:.16,cam:.45,bigcam:.62,drawercam:.46,cap:.3,cube:.22,sleeve:.22,ring:.2,allen:.5,rail:.14,panel:.14};
-const FIT_LEN={screw:1.6,longscrew:2.9,bolt:1.75,dowel:.9,cam:.95,bigcam:1.1,drawercam:.8,cap:.55,cube:.75,sleeve:.7,rail:.75,ring:.6,allen:1.2,lbracket:.8,panel:1.0};
-const SPIN={screw:1,longscrew:1,bolt:1};        // driven fasteners: continuous rotation
+const HOLE_R={dowel:.17,screw:.13,longscrew:.13,bolt:.16,cam:.45,bigcam:.62,drawercam:.46,cap:.3,cube:.22,sleeve:.22,ring:.2,allen:.5,rail:.14,panel:.14,
+  s115980:3.4*MM,s108530:2.8*MM,s109041:2.4*MM,b120298:2.8*MM,awl:2.4*MM};
+const FIT_LEN={screw:1.6,longscrew:2.9,bolt:1.75,dowel:.9,cam:.95,bigcam:1.1,drawercam:.8,cap:.55,cube:.75,sleeve:.7,rail:.75,ring:.6,allen:1.2,lbracket:.8,panel:1.0,
+  s115980:63*MM,s108530:22*MM,s109041:15*MM,b120298:20*MM,awl:150*MM};
+const fitLen=k=>FIT_LEN[k]||1.3;
+const SPIN={screw:1,longscrew:1,bolt:1,s115980:1,s108530:1,s109041:1};  // driven fasteners: continuous rotation
 const LOCK={cam:1,bigcam:1,drawercam:1,allen:1};                     // cams: a quarter-turn once seated
 function box(w,h,d){const g=new THREE.Group();const geo=new THREE.BoxGeometry(w,h,d);g.add(new THREE.Mesh(geo,faceMat));g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lineMat));return g;}
 function cyl(r,h,s){const g=new THREE.Group();const geo=new THREE.CylinderGeometry(r,r,h,s||16);g.add(new THREE.Mesh(geo,faceMat));g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo,25),lineMat));return g;}
+function taper(rt,rb,h,s){const g=new THREE.Group();const geo=new THREE.CylinderGeometry(rt,rb,h,s||14);g.add(new THREE.Mesh(geo,faceMat));g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo,25),lineMat));return g;}
+// The LACK fittings below are built from dimensions measured off the 1:1 fittings
+// page of AA-472482-3.
+function darken(g){g.children[0].material=darkMat;return g;}
+// Pan-head Pozidriv wood screw, centred on the origin, tip at -Y so the engine can
+// drop it straight down its insertion axis.
+function panScrew(L,r,hr,hh){
+  const g=new THREE.Group();
+  const shank=cyl(r,L-hh,14);shank.position.y=-hh/2;g.add(shank);
+  const head=cyl(hr,hh,20);head.position.y=L/2-hh/2;g.add(head);
+  const tip=new THREE.Mesh(new THREE.CylinderGeometry(r,0,r*2.4,14),faceMat);tip.position.y=-L/2+r*1.2;g.add(tip);
+  const a=darken(box(hr*1.5,hh*0.4,hr*0.3)),b=darken(box(hr*0.3,hh*0.4,hr*1.5));
+  a.position.y=b.position.y=L/2;g.add(a,b);
+  return g;
+}
+// Double-ended dowel screw: wood thread and a point at both ends, collar at the middle.
+function dblScrew(L,r,cr){
+  const g=new THREE.Group();
+  g.add(cyl(r,L*0.84,14));
+  const t1=new THREE.Mesh(new THREE.CylinderGeometry(r,0,L*0.1,14),faceMat);t1.position.y=-L/2+L*0.05;
+  const t2=new THREE.Mesh(new THREE.CylinderGeometry(0,r,L*0.1,14),faceMat);t2.position.y=L/2-L*0.05;
+  g.add(t1,t2,cyl(cr,L*0.04,20));
+  return g;
+}
+// Angle bracket 120298. Origin sits at the top of the shelf-bearing arm, on the face
+// that lies against the leg: +Y is up, +Z points away from the leg into the table.
+function bracket120298(){
+  const g=new THREE.Group();
+  const rib=box(20*MM,2.5*MM,20*MM);rib.position.set(0,-1.25*MM,10*MM);
+  const tab=box(18*MM,14*MM,2.5*MM);tab.position.set(0,-9.5*MM,1.25*MM);
+  const slot=darken(box(5*MM,3.5*MM,11*MM));slot.position.set(0,-1.25*MM,11*MM);
+  const hole=darken(box(5*MM,5*MM,3.5*MM));hole.position.set(0,-9.5*MM,1.25*MM);
+  g.add(rib,tab,slot,hole);
+  return g;
+}
+// Marking template 120938. Origin at the hooked end, long axis +Y, lying on the z=0 face.
+const TMPL_LEN=235*MM,TMPL_MARK=220.5*MM;
+function template120938(){
+  const g=new THREE.Group();
+  const W=26*MM,T=4*MM;
+  const bar=box(W,TMPL_LEN,T);bar.position.set(0,TMPL_LEN/2,T/2);
+  const lip=box(W,T,12*MM);lip.position.set(0,T/2,-6*MM+T);
+  g.add(bar,lip);
+  [0.30,0.52,0.74].forEach(f=>{const c=darken(box(13*MM,26*MM,T*1.4));c.position.set(0,TMPL_LEN*f,T/2);g.add(c);});
+  const dot=darken(cyl(2.2*MM,T*1.6,12));dot.rotation.x=Math.PI/2;dot.position.set(0,TMPL_MARK,T/2);g.add(dot);
+  return g;
+}
 function makeFit(kind){
+  if(kind==='s115980')return dblScrew(63*MM,3*MM,5.5*MM);
+  if(kind==='s108530')return panScrew(22*MM,2.5*MM,4.5*MM,3*MM);
+  if(kind==='s109041')return panScrew(15*MM,2.1*MM,4*MM,2.6*MM);
+  if(kind==='b120298')return bracket120298();
+  if(kind==='t120938')return template120938();
+  // Tools. Smooth parts need >=16 segments: at 12 the facet angle clears the edge
+  // threshold and the shaft comes out ribbed, which reads as a thread.
+  if(kind==='awl'||kind==='driver'){
+    const d=kind==='driver';
+    const L=(d?200:162)*MM;
+    const parts=d
+      ?[[taper(7*MM,12.5*MM,10*MM,12),10],[cyl(12.5*MM,76*MM,12),76],[taper(12.5*MM,7*MM,14*MM,12),14],
+        [cyl(4.5*MM,14*MM,12),14],[cyl(3*MM,74*MM,12),74],[taper(3*MM,1.3*MM,12*MM,12),12]]
+      :[[taper(6.5*MM,10.5*MM,9*MM,12),9],[cyl(10.5*MM,58*MM,12),58],[taper(10.5*MM,6*MM,11*MM,12),11],
+        [cyl(4*MM,10*MM,12),10],[cyl(1.9*MM,46*MM,12),46],[taper(1.9*MM,0.15*MM,28*MM,12),28]];
+    const g=new THREE.Group();let y=L/2;
+    parts.forEach(([m,hh])=>{m.position.y=y-hh*MM/2;y-=hh*MM;g.add(m);});
+    return g;}
+  if(kind==='hammer'){
+    const g=new THREE.Group(),L=330*MM,top=L/2;
+    const handle=taper(11*MM,9*MM,290*MM,12);handle.position.y=-L/2+145*MM;
+    const butt=taper(14.5*MM,11.5*MM,18*MM,12);butt.position.y=-L/2+9*MM;
+    const eye=box(24*MM,42*MM,28*MM);eye.position.y=top-21*MM;        // head body around the handle
+    const face=cyl(15*MM,44*MM,12);face.rotation.x=Math.PI/2;face.position.set(0,top-21*MM,36*MM);
+    g.add(handle,butt,eye,face);
+    // split claw, sweeping back off the head and curling down
+    [-8*MM,8*MM].forEach(dx=>{
+      const a=box(7*MM,12*MM,34*MM);a.position.set(dx,top-16*MM,-26*MM);a.rotation.x=0.22;
+      const b=box(7*MM,12*MM,26*MM);b.position.set(dx,top-28*MM,-47*MM);b.rotation.x=0.8;
+      g.add(a,b);});
+    return g;}
   if(kind==='screw'){const g=new THREE.Group();g.add(cyl(0.11,1.3,12));const hd=cyl(0.26,0.16,14);hd.position.y=0.73;g.add(hd);return g;}
   if(kind==='longscrew'){const g=new THREE.Group();g.add(cyl(0.12,2.6,12));return g;}
   if(kind==='bolt'){const g=new THREE.Group();g.add(cyl(0.14,1.5,12));const hd=cyl(0.3,0.18,14);hd.position.y=0.8;g.add(hd);return g;}
@@ -511,68 +598,112 @@ function buildBrimnes(){
 }
 
 // ================= MODEL: LACK coffee table =================
+// Built to AA-472482-3, the 90 × 55 × 45 cm version. Everything is true scale at
+// 1 world unit = 50 mm, so the fittings really are as small as they look.
 function buildLack(){
   const P={};
-  const topW=18,topD=11,topT=0.7,legH=8,legS=1.3,legX=topW/2-1,legZ=topD/2-1;
-  const topY=legH+topT/2;                 // tabletop centre height
-  const railY=2.6,railZ=3.8,railLen=topW-2,railS=1.1;
-  const shelfY=railY+railS/2+0.3;
-  function reg(key,obj,size,pos,name){obj.position.set(pos[0],pos[1],pos[2]);obj.visible=false;content.add(obj);P[key]={obj,size,pos:V(pos[0],pos[1],pos[2]),name};}
+  const CM=1/5;                                    // centimetres -> world units
+  const topW=90*CM,topD=55*CM,topT=5*CM;           // table top 90 × 55 × 5 cm
+  const legS=5*CM,legH=40*CM;                      // legs 5 × 5 × 40 cm, flush with the corners
+  const legX=topW/2-legS/2,legZ=topD/2-legS/2;
+  const topY=legH+topT/2;
+  const shelfT=2*CM,shelfTop=25*CM;                // shelf sits 25 cm off the floor
+  const shelfY=shelfTop-shelfT/2,shelfBot=shelfTop-shelfT;
+  // The shelf only has to clear the legs across the depth — along the length it runs
+  // past them, which is what the bracket arms (centred on each leg) sit under.
+  const shelfW=88*CM,shelfD=topD-2*legS;           // 88 × 45 cm
+  const faceX=legX-legS/2,faceZ=legZ-legS/2;       // inner faces of the legs
+  const markY=shelfBot-9.5*MM;                     // bracket screw sits 14 mm below the shelf
+  const LEGS=[[-1,1],[1,1],[-1,-1],[1,-1]];        // sx, sz per leg
+  const legKey=(sx,sz)=>'leg'+(sz>0?'F':'B')+(sx<0?'L':'R');
+
+  function reg(key,obj,size,pos,name,o){o=o||{};obj.position.set(pos[0],pos[1],pos[2]);if(o.rotY)obj.rotation.y=o.rotY;obj.visible=false;content.add(obj);
+    P[key]={obj,size,pos:V(pos[0],pos[1],pos[2]),name,rotY:o.rotY||0,enter:o.enter,spin:o.spin};}
   reg('top',box(topW,topT,topD),[topW,topT,topD],[0,topY,0],'Table top');
-  reg('legFL',box(legS,legH,legS),[legS,legH,legS],[-legX,legH/2,legZ],'Leg');
-  reg('legFR',box(legS,legH,legS),[legS,legH,legS],[legX,legH/2,legZ],'Leg');
-  reg('legBL',box(legS,legH,legS),[legS,legH,legS],[-legX,legH/2,-legZ],'Leg');
-  reg('legBR',box(legS,legH,legS),[legS,legH,legS],[legX,legH/2,-legZ],'Leg');
-  reg('railF',box(railLen,railS,railS),[railLen,railS,railS],[0,railY,railZ],'Shelf rail 120938');
-  reg('railB',box(railLen,railS,railS),[railLen,railS,railS],[0,railY,-railZ],'Shelf rail 120938');
-  reg('shelf',box(topW-3,0.6,topD-2.5),[topW-3,0.6,topD-2.5],[0,shelfY,0],'Lower shelf');
-  reg('brkFL',makeFit('lbracket'),[0.9,0.9,0.6],[-legX+1,shelfY-0.2,railZ-0.3],'Bracket 120298');
-  reg('brkFR',makeFit('lbracket'),[0.9,0.9,0.6],[legX-1,shelfY-0.2,railZ-0.3],'Bracket 120298');
-  reg('brkBL',makeFit('lbracket'),[0.9,0.9,0.6],[-legX+1,shelfY-0.2,-railZ+0.3],'Bracket 120298');
-  reg('brkBR',makeFit('lbracket'),[0.9,0.9,0.6],[legX-1,shelfY-0.2,-railZ+0.3],'Bracket 120298');
+  // Legs thread onto the studs from underneath: they rise into place and turn on, rather
+  // than dropping through the table top.
+  LEGS.forEach(([sx,sz])=>reg(legKey(sx,sz),box(legS,legH,legS),[legS,legH,legS],[sx*legX,legH/2,sz*legZ],'Leg',{enter:-5,spin:Math.PI*3}));
+  reg('shelf',box(shelfW,shelfT,shelfD),[shelfW,shelfT,shelfD],[0,shelfY,0],'Lower shelf');
+  // Brackets: tab against the inner face of the leg, slotted arm reaching in under the shelf.
+  LEGS.forEach(([sx,sz])=>reg('brk'+(sz>0?'F':'B')+(sx<0?'L':'R'),bracket120298(),[20*MM,17*MM,20*MM],[sx*legX,shelfBot,sz*faceZ],'Angle bracket 120298',{rotY:sz>0?Math.PI:0}));
+  // The single template, shown on both legs of a side at once — in reality you move it from one to the other.
+  LEGS.forEach(([sx,sz])=>reg('tmpl'+(sz>0?'F':'B')+(sx<0?'L':'R'),template120938(),[26*MM,TMPL_LEN,4*MM],[sx*legX,0,sz*faceZ],'Marking template 120938',{rotY:sz>0?Math.PI:0}));
 
   const S=[];
-  S[0]={name:'Sort tools & fittings',txt:'The full parts list. You need a screwdriver and a hammer. Assemble on a soft surface so you do not scratch the table top.',it:[]};
+  S[0]={name:'Parts, fittings & tools — actual size',txt:'Everything is drawn true to scale (1 grid square = 10 cm), so you can see how small the fittings really are. Scroll to zoom in and the labels open up as room allows. Tools: a screwdriver, a hammer and an awl. Work on a soft surface such as carpet so you do not scratch the table top.',it:[]};
   const st=(n,name,txt,it)=>{S[n]={name,txt,it};};
   const F=(k,c,p,nm)=>({kind:k,qty:c,part:p,name:nm});
-  st(1,'Screw studs into the top','Hand-turn 4 double-ended screws 115980 into the corner holes on the underside of the table top.',[F('longscrew',4,'115980','Double-ended screw')]);
-  st(2,'Attach the 4 legs','Thread each leg onto a stud and turn it firmly onto the table top.',[F('panel',4,'','Leg')]);
-  st(3,'Hook on the front rail','Press shelf rail 120938 down onto the two front legs so the keyholes lock over the pegs.',[F('panel',1,'120938','Shelf rail')]);
-  st(4,'Screw the front rail','Secure the front rail to the legs with 2 screws 108530. Do not use 109041 here.',[F('screw',2,'108530','Screw')]);
-  st(5,'Hook on the back rail','Press the second shelf rail down onto the two back legs.',[F('panel',1,'120938','Shelf rail')]);
-  st(6,'Screw the back rail','Secure the back rail to the legs with 2 screws 108530.',[F('screw',2,'108530','Screw')]);
-  st(7,'Lay in the lower shelf','Tilt the shelf panel in between the rails and lower it flat onto the ledges.',[F('panel',1,'','Lower shelf')]);
-  st(8,'Bracket the shelf','Fix the shelf to the rails at all 4 corners with brackets 120298 and screws 109041.',[F('lbracket',4,'120298','Angle bracket'),F('screw',4,'109041','Screw')]);
+  st(1,'Double-ended screws into the top','Turn 4 double-ended screws 115980 by hand into the corner holes on the underside of the table top, until the collar in the middle meets the wood. Roughly half the screw stays proud.',[F('s115980',4,'115980','Double-ended screw')]);
+  st(2,'Turn the 4 legs on','Stand each leg over a protruding screw and turn the leg — not the screw — until it pulls up tight against the table top.',[F('panel',4,'','Leg')]);
+  st(3,'Mark 2 legs with the template','Tip the table onto its side. Hook template 120938 over the free end of a leg, press it flat against the inner face, and punch a single mark through the small hole with the awl. Lift the template off and repeat on the second leg of the same side.',[F('t120938',1,'120938','Marking template'),F('awl',1,'','Awl — 1 mark per leg')]);
+  st(4,'2 brackets on the marked legs','Sit bracket 120298 on the mark with its slotted arm pointing in under the future shelf, and drive screw 108530 through the small round tab hole into the leg. Use 108530 here — the shorter 109041 is for step 8.',[F('b120298',2,'120298','Angle bracket'),F('s108530',2,'108530','Screw')]);
+  st(5,'Mark the other 2 legs','Move the same template to the two legs on the opposite long side and mark each one the same way.',[F('t120938',1,'120938','Marking template'),F('awl',1,'','Awl — 1 mark per leg')]);
+  st(6,'2 brackets on those legs','Fit the remaining 2 brackets 120298 with the last 2 screws 108530.',[F('b120298',2,'120298','Angle bracket'),F('s108530',2,'108530','Screw')]);
+  st(7,'Drop the shelf onto the brackets','Angle the shelf panel in between the legs and swing it down so it lands flat on all 4 bracket arms. Nothing is fastened yet.',[F('panel',1,'','Lower shelf')]);
+  st(8,'4 screws up into the shelf','From underneath, drive screw 109041 up through the oval slot in each bracket arm into the shelf — all 4 corners. The slot lets you nudge the shelf square before it bites.',[F('s109041',4,'109041','Screw')]);
 
   function fx(n){
     const g=[];const G=(kind,part,marks)=>marks.length&&g.push({kind,part,marks});
-    const uy=legH; // tabletop underside
+    const side=sz=>LEGS.filter(l=>l[1]===sz);
     switch(n){
-      case 1:G('longscrew','115980',[mk(-legX,uy,legZ,0,-1,0),mk(legX,uy,legZ,0,-1,0),mk(-legX,uy,-legZ,0,-1,0),mk(legX,uy,-legZ,0,-1,0)]);break;
-      case 4:G('screw','108530',[mk(-legX+0.9,railY+0.6,railZ,0,-1,0),mk(legX-0.9,railY+0.6,railZ,0,-1,0)]);break;
-      case 6:G('screw','108530',[mk(-legX+0.9,railY+0.6,-railZ,0,-1,0),mk(legX-0.9,railY+0.6,-railZ,0,-1,0)]);break;
-      case 8:G('screw','109041',[mk(-legX+1,shelfY+0.3,railZ-0.3,0,-1,0),mk(legX-1,shelfY+0.3,railZ-0.3,0,-1,0),mk(-legX+1,shelfY+0.3,-railZ+0.3,0,-1,0),mk(legX-1,shelfY+0.3,-railZ+0.3,0,-1,0)]);break;
+      // Driven up into the underside of the top, at the four leg positions.
+      case 1:G('s115980','115980',LEGS.map(([sx,sz])=>mk(sx*legX,legH,sz*legZ,0,1,0)));break;
+      // Awl mark and bracket screw: driven outwards into the inner face of each leg.
+      case 3:G('awl','',side(1).map(([sx,sz])=>mk(sx*legX,markY,sz*faceZ,0,0,sz)));break;
+      case 4:G('s108530','108530',side(1).map(([sx,sz])=>mk(sx*legX,markY,sz*faceZ,0,0,sz)));break;
+      case 5:G('awl','',side(-1).map(([sx,sz])=>mk(sx*legX,markY,sz*faceZ,0,0,sz)));break;
+      case 6:G('s108530','108530',side(-1).map(([sx,sz])=>mk(sx*legX,markY,sz*faceZ,0,0,sz)));break;
+      // Driven up through the bracket slot into the underside of the shelf.
+      case 8:G('s109041','109041',LEGS.map(([sx,sz])=>mk(sx*legX,shelfBot-2.5*MM,sz*(faceZ-11*MM),0,1,0)));break;
     }
     return g;
   }
   function vis(n){
     const s=new Set();if(n===0)return s;
     s.add('top');
-    if(n>=2){s.add('legFL');s.add('legFR');s.add('legBL');s.add('legBR');}
-    if(n>=3)s.add('railF');
-    if(n>=5)s.add('railB');
+    if(n>=2)LEGS.forEach(([sx,sz])=>s.add(legKey(sx,sz)));
+    if(n===3){s.add('tmplFL');s.add('tmplFR');}
+    if(n===5){s.add('tmplBL');s.add('tmplBR');}
+    if(n>=4){s.add('brkFL');s.add('brkFR');}
+    if(n>=6){s.add('brkBL');s.add('brkBR');}
     if(n>=7)s.add('shelf');
-    if(n>=8){s.add('brkFL');s.add('brkFR');s.add('brkBL');s.add('brkBR');}
     return s;
   }
-  const trayItems=[
-    ['Table top','','×1','panel'],['Leg','','×4','cube'],['Shelf rail','120938','×2','rail'],['Lower shelf','','×1','panel'],
-    ['Double-ended screw','115980','×4','longscrew'],['Screw','108530','×4','screw'],['Screw','109041','×4','screw'],['Angle bracket','120298','×4','lbracket']
-  ];
+
+  // ---- parts screen: every item laid out at true scale on a 10 cm grid ----
   const trayLabels=[];
-  trayItems.forEach((it,i)=>{const col=i%4,row=Math.floor(i/4);const x=(col-1.5)*6.4,z=(row-0.5)*4.6;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x-0.4,2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+'</code>'});});
-  const cheers={1:{m:"Off to a great start!",p:'wave'},4:{m:"Rock-solid rail. Nice!",p:'thumbsUp'},7:{m:"Shelf's in — looking good!",p:'happy'}};
-  return {name:'LACK coffee table',count:8,P,steps:S,fx,vis,trayLabels,trayY:1.7,trayFit:{v:6.5,x:11},cheers,finish:"You did it! The LACK table is finished. 🎉"};
+  const put=(obj,pos,text,dy)=>{obj.position.set(pos[0],pos[1],pos[2]);tray.add(obj);if(text)trayLabels.push({anchor:V(pos[0],-0.15,pos[2]),text,dy});};
+  // Fittings lie along X; makeFit builds them along their own +Y axis.
+  const lay=(kind,pos,text,dy)=>{const m=makeFit(kind);m.rotation.z=Math.PI/2;put(m,pos,text,dy);};
+  put(box(topW,topT,topD),[-7,topT/2,-5],'Table top <code>×1</code>');
+  put(box(shelfW,shelfT,shelfD),[-8,shelfT/2,6.5],'Lower shelf <code>×1</code>');
+  [0,1,2,3].forEach(i=>{const l=box(legS,legS,legH);l.position.set(7.2+i*1.4,legS/2,-5);tray.add(l);});
+  trayLabels.push({anchor:V(9.3,-0.15,-0.6),text:'Leg <code>×4</code>'});
+  // The four fittings stay clustered so the close-up can show them together, 1:1,
+  // beside a 10 cm bar; their labels are fanned out instead.
+  const bar=box(2,0.07,0.16);bar.children[0].material=hlMat;put(bar,[6.4,0.035,3.3],'10 cm — for scale',-4);
+  lay('s115980',[6.4,3*MM,4.4],'Double-ended screw <code>115980</code> <code>×4</code>',24);
+  lay('s108530',[6.4,2.5*MM,5.3],'Screw <code>108530</code> <code>×4</code>',48);
+  lay('s109041',[6.4,2.1*MM,6.2],'Screw <code>109041</code> <code>×4</code>',72);
+  put(bracket120298(),[6.4,17*MM,7.1],'Angle bracket <code>120298</code> <code>×4</code>',96);
+  const tmpl=new THREE.Group(),tmplInner=template120938();
+  tmplInner.rotation.x=Math.PI/2;tmpl.add(tmplInner);tmpl.rotation.y=Math.PI/2;
+  put(tmpl,[6.4,4*MM,11],'Marking template <code>120938</code> — a tool, it does not stay on the table <code>×1</code>');
+  ['driver','hammer','awl'].forEach((k,i)=>{const t=makeFit(k);t.rotation.z=Math.PI/2;t.position.set(-7+i*7,0.3,14.5);tray.add(t);});
+  trayLabels.push({anchor:V(0,-0.15,15.8),text:'You supply: screwdriver · hammer · awl'});
+  const gp=[];
+  for(let i=-6;i<=8;i++)gp.push(-17,0,i*2,12,0,i*2);
+  for(let i=-8;i<=6;i++)gp.push(i*2,0,-12,i*2,0,16);
+  tray.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gp,3)),new THREE.LineBasicMaterial({color:0x141414,transparent:true,opacity:0.16})));
+
+  const cheers={1:{m:"Off to a great start!",p:'wave'},4:{m:"First brackets on. Nice!",p:'thumbsUp'},7:{m:"Shelf's in — looking good!",p:'happy'}};
+  return {name:'LACK coffee table 90×55',count:8,P,steps:S,fx,vis,trayLabels,trayY:1,trayFit:{v:17,x:30},trayCenter:V(-2.5,1,2),
+    trayDetail:{at:V(6.4,0.12,5.2),half:2.2,label:'fittings & 10 cm bar, 1:1'},autoAnn:true,
+    dh:{1:1.25,3:0.85,4:0.55,5:0.85,6:0.55,8:0.6},
+    // Hand-picked close-up angles: the generic broadside guess ends up looking straight
+    // through a leg or the table top for most of these.
+    ia:{1:{th:2.61,ph:2.15},3:{th:3.93,ph:1.12},4:{th:3.93,ph:1.05},5:{th:2.36,ph:1.12},6:{th:2.36,ph:1.05},8:{th:5.50,ph:2.02}},
+    cheers,finish:"You did it! The LACK table is finished. 🎉"};
 }
 
 const BUILDERS={brimnes:buildBrimnes,lack:buildLack};
@@ -580,8 +711,8 @@ const BUILDERS={brimnes:buildBrimnes,lack:buildLack};
 // ---------- engine state ----------
 let MODEL=null,P={},idx=0;
 let theta=0.86,phi=1.02,calloutOn=true,labelsOn=true;
-const camera=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);
-const camI=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);
+const camera=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);camera.layers.enable(1);
+const camI=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);camI.layers.enable(2);
 let camCenter=V(0,2,0),camTarget=V(0,2,0),iCenter=V(0,2,0),iTarget=V(0,2,0);
 let halfView=13,halfTarget=13,iHalf=3,iHalfTarget=3,userZoom=1,baseHalf=13;
 let panX=0,panY=0,panXTarget=0,panYTarget=0;   // shift main view when a detail is shown
@@ -609,7 +740,9 @@ addEventListener('resize',()=>{resize();clearTimeout(reserveT);reserveT=setTimeo
 // ---------- markers ----------
 let markers=[],arrows=[];
 const FULL_MARKS=4;   // the manual draws one close-up labelled "16x", not sixteen fasteners
-function buildFits(n){
+// Annotations are drawn twice: layer 1 sized for the wide shot, layer 2 sized to the
+// fitting itself so a 15 mm screw is not swallowed by its own highlight in the close-up.
+function buildFits(n,annBig){
   while(fitGroup.children.length)fitGroup.remove(fitGroup.children[0]);
   markers=[];arrows=[];
   const groups=MODEL.fx(n);let i=0;
@@ -617,15 +750,21 @@ function buildFits(n){
     const p=V(m.pos[0],m.pos[1],m.pos[2]);
     const nd=V(m.dir[0],m.dir[1],m.dir[2]).normalize();
     const out=nd.clone().multiplyScalar(-1);
+    const L=fitLen(gr.kind);
     const hole=new THREE.Mesh(new THREE.CircleGeometry(HOLE_R[gr.kind]||0.15,16),holeMat);
     hole.quaternion.setFromUnitVectors(ZAX,out);hole.position.copy(p).addScaledVector(out,0.012);hole.renderOrder=1;fitGroup.add(hole);
     if(i>=FULL_MARKS){i++;return;}   // beyond this, the hole alone marks the position
     const fit=makeFit(gr.kind);const q0=new THREE.Quaternion().setFromUnitVectors(UP,out);
-    fit.quaternion.copy(q0);fit.userData={p,out,ph:i*0.5,kind:gr.kind,press:!!gr.press,q0};fitGroup.add(fit);markers.push(fit);
-    const ring=new THREE.Mesh(new THREE.RingGeometry(0.32,0.52,20),hlMat);ring.quaternion.setFromUnitVectors(ZAX,nd);
-    ring.position.copy(p).addScaledVector(out,0.006);ring.renderOrder=2;fitGroup.add(ring);
-    const cone=new THREE.Mesh(new THREE.CylinderGeometry(0,0.17,0.52,14),hlMat);cone.quaternion.setFromUnitVectors(UP,nd);
-    cone.userData={p,out,base:(FIT_LEN[gr.kind]||1.2)+0.5};fitGroup.add(cone);arrows.push(cone);
+    fit.quaternion.copy(q0);fit.userData={p,out,ph:i*0.5,kind:gr.kind,press:!!gr.press,q0,L};fitGroup.add(fit);markers.push(fit);
+    const ann=(a,layer)=>{
+      const ring=new THREE.Mesh(new THREE.RingGeometry(0.32*a,0.52*a,20),hlMat);ring.quaternion.setFromUnitVectors(ZAX,nd);
+      ring.position.copy(p).addScaledVector(out,0.006);ring.renderOrder=2;ring.layers.set(layer);fitGroup.add(ring);
+      const cone=new THREE.Mesh(new THREE.CylinderGeometry(0,0.17*a,0.52*a,14),hlMat);cone.quaternion.setFromUnitVectors(UP,nd);cone.layers.set(layer);
+      cone.userData={p,out,base:L+0.5*a,bob:0.3*a};fitGroup.add(cone);arrows.push(cone);
+    };
+    ann(MODEL.autoAnn?annBig:1,1);
+    // in the close-up the ring should hug the shank, so size it off the hole, not the view
+    ann(MODEL.autoAnn?(HOLE_R[gr.kind]||0.15)*3.4:1,2);
     i++;
   }));
   return groups;
@@ -654,10 +793,10 @@ function focusFor(n,before){
 
 // ---------- leaders / labels ----------
 const leads=document.getElementById('leads'),lead=document.getElementById('lead'),target=document.getElementById('target');
-const cntEl=document.getElementById('cnt'),legendEl=document.getElementById('legend');
+const cntEl=document.getElementById('cnt'),legendEl=document.getElementById('legend'),detailLabel=document.getElementById('detaillabel');
 let primaryMarker=null;
 function updateLeader(){
-  const show=calloutOn&&idx!==0&&primaryMarker;
+  const show=calloutOn&&primaryMarker;
   insetC.style.display=show?'block':'none';
   document.getElementById('detailtag').style.display=show?'block':'none';
   leads.style.display=show?'block':'none';
@@ -676,28 +815,27 @@ const TAG_OFF=6;   // how far up-left of its item a part tag sits, so items behi
 function positionTrayLabels(){
   if(idx!==0||!labelsOn||COMPACT.matches){trayLabelPool.forEach(d=>d.style.display='none');return;}
   const w=canvas.clientWidth,h=canvas.clientHeight,labels=MODEL.trayLabels;
-  while(trayLabelPool.length<labels.length){const d=document.createElement('div');d.className='chip tray';d.style.display='flex';leads.parentElement.appendChild(d);trayLabelPool.push(d);}
-  const wanted=[];
-  labels.forEach((l,i)=>{
-    const d=trayLabelPool[i];
-    if(d._text!==l.text){d.innerHTML=l.text;d._text=l.text;d._w=d.offsetWidth;d._h=d.offsetHeight;}
-    const v=l.anchor.clone().project(camera);
-    if(v.z>1){d.style.display='none';return;}
-    d.style.display='flex';
-    wanted.push({d,w:d._w,h:d._h,x:(v.x*0.5+0.5)*w-TAG_OFF,y:(-v.y*0.5+0.5)*h-TAG_OFF});
-  });
-  // greedy top-down de-collision: a tag that would cover another one drops below it
-  wanted.sort((a,b)=>a.y-b.y);
+  while(trayLabelPool.length<labels.length){const d=document.createElement('div');d.className='chip tag';leads.parentElement.appendChild(d);trayLabelPool.push(d);}
+  const live=[];
+  labels.forEach((l,i)=>{const d=trayLabelPool[i];
+    if(d.dataset.txt!==l.text){d.dataset.txt=l.text;d.innerHTML='<span class="tdot"></span>'+l.text;
+      d.style.display='flex';l.ew=d.offsetWidth;l.eh=d.offsetHeight;}
+    const v=l.anchor.clone().project(camera);if(v.z>1){d.style.display='none';return;}
+    live.push({d,l,x:(v.x*0.5+0.5)*w+(l.dx||0),y:(-v.y*0.5+0.5)*h+8+(l.dy||0)});});
+  // Show a label whenever it fits without touching one already placed, working outwards
+  // from the middle of the view — so zooming into a cluster is what reveals its labels.
+  const mx=w/2,my=h*0.45;
+  live.sort((a,b)=>Math.hypot(a.x-mx,a.y-my)-Math.hypot(b.x-mx,b.y-my));
   const sr=stepnoEl.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
-  const placed=[{l:sr.left-cr.left-10,r:sr.right-cr.left+10,t:sr.top-cr.top-8,btm:sr.bottom-cr.top+8}];
-  wanted.forEach(b=>{
-    for(let guard=0;guard<24;guard++){
-      let hit=false;
-      placed.forEach(p=>{if(b.x-b.w<p.r&&p.l<b.x&&b.y-b.h<p.btm&&p.t<b.y){b.y=p.btm+b.h+3;hit=true;}});
-      if(!hit)break;
-    }
-    placed.push({l:b.x-b.w,r:b.x,t:b.y-b.h,btm:b.y});
-    b.d.style.left=b.x+'px';b.d.style.top=b.y+'px';
+  const placed=[{x0:sr.left-cr.left-10,x1:sr.right-cr.left+10,y0:sr.top-cr.top-8,y1:sr.bottom-cr.top+8}];
+  live.forEach(c=>{
+    const r={x0:c.x-c.l.ew/2,x1:c.x+c.l.ew/2,y0:c.y,y1:c.y+c.l.eh};
+    // Must sit wholly inside the canvas: a label half off the edge is unreadable, and
+    // one hanging past the bottom would cover the step caption.
+    if(r.x0<4||r.x1>w-4||r.y0<4||r.y1>h-4){c.d.style.display='none';return;}
+    if(placed.some(p=>p.x0<r.x1+6&&r.x0<p.x1+6&&p.y0<r.y1+4&&r.y0<p.y1+4)){c.d.style.display='none';return;}
+    placed.push(r);
+    c.d.style.display='flex';c.d.style.left=c.x+'px';c.d.style.top=c.y+'px';
   });
 }
 
@@ -714,6 +852,7 @@ function ease(u){return u<0?0:u>1?1:u*u*(3-2*u);}
 // Direction a newly-visible part travels in from. The manual shows horizontal slides
 // and pushes as often as drops; a blanket +Y drop misreads those steps.
 function entryOffset(n,it){
+  if(it.enter!==undefined)return V(0,it.enter,0);   // per-part override, e.g. legs rise from below
   const e=MODEL.entry&&MODEL.entry[n];
   if(!e)return V(0,6,0);
   const v=V(e[0],e[1],e[2]);
@@ -729,24 +868,26 @@ function loop(){
   halfView+=(halfTarget-halfView)*0.12;iHalf+=(iHalfTarget-iHalf)*0.14;
   resize();
   const prog=ease((tt-stepT0)/stepDur);
-  newParts.forEach(k=>{const it=P[k];if(!it)return;it.obj.position.copy(it.pos).addScaledVector(entryOffset(idx,it),1-prog);});
+  newParts.forEach(k=>{const it=P[k];if(!it)return;
+    it.obj.position.copy(it.pos).addScaledVector(entryOffset(idx,it),1-prog);
+    if(it.spin)it.obj.rotation.y=it.rotY+it.spin*(1-prog);});
   if(MODEL.motion)MODEL.motion(idx,prog);
   markers.forEach(m=>{
-    const{p,out,ph,kind,press,q0}=m.userData;
-    const bob=REDUCED?0:Math.max(0,Math.sin(tt*2+ph)*0.06);
-    m.position.copy(p).addScaledVector(out,0.72+(1-prog)*1.6+bob);
+    const{p,out,ph,kind,press,q0,L}=m.userData;
+    const bob=REDUCED?0:Math.max(0,Math.sin(tt*2+ph)*L*0.046);
+    m.position.copy(p).addScaledVector(out,L*0.5+0.02+(1-prog)*L*1.23+bob);
     let a=0;
     if(!press&&SPIN[kind])a=REDUCED?prog*Math.PI*2:tt*4.2+ph;
     else if(!press&&LOCK[kind])a=ease((prog-0.55)/0.45)*Math.PI/2;
     m.quaternion.copy(q0);
     if(a)m.quaternion.multiply(_qs.setFromAxisAngle(UP,a));
   });
-  arrows.forEach(a=>{const{p,out,base}=a.userData;const bob=REDUCED?0:(Math.sin(tt*2.4)*0.5+0.5)*0.3;a.position.copy(p).addScaledVector(out,base+bob);a.visible=prog>0.15;});
+  arrows.forEach(a=>{const{p,out,base,bob}=a.userData;const b=REDUCED?0:(Math.sin(tt*2.4)*0.5+0.5)*bob;a.position.copy(p).addScaledVector(out,base+b);a.visible=prog>0.15;});
   positionTrayLabels();
-  const show=calloutOn&&idx!==0&&primaryMarker;
+  const show=calloutOn&&primaryMarker;
   // servo the pan so the highlighted marker settles on the anchor and stays framed
   // while the user rotates, instead of drifting under the opaque inset
-  if(show){const v=primaryMarker.clone().project(camera);
+  if(show&&idx!==0){const v=primaryMarker.clone().project(camera);
     panXTarget=Math.max(-0.9,Math.min(0.9,panX+(v.x-ANCHOR_X)));
     panYTarget=Math.max(-0.9,Math.min(0.9,panY+(v.y-ANCHOR_Y)));}
   else{panXTarget=0;panYTarget=0;}
@@ -770,7 +911,9 @@ prevB.innerHTML=icon('arrow-left');nextB.innerHTML=icon('arrow-right');playB.inn
 detailB.innerHTML=icon('zoom-in');labelsB.innerHTML=icon('tag');
 menuLink.innerHTML=icon('layout-grid')+'Menu';
 selBtn.insertAdjacentHTML('beforeend',icon('chevron-down'));
-function setVis(n){for(const k in P)P[k].obj.visible=false;const s=MODEL.vis(n);s.forEach(k=>{if(P[k])P[k].obj.visible=true;});}
+// Reset to rest pose first, so a part left mid-flight by fast step-skipping never sticks.
+function setVis(n){for(const k in P){const it=P[k];it.obj.visible=false;it.obj.position.copy(it.pos);if(it.spin)it.obj.rotation.y=it.rotY;}
+  MODEL.vis(n).forEach(k=>{if(P[k])P[k].obj.visible=true;});}
 // ---------- the encouraging IKEA guy ----------
 const buddyEl=document.getElementById('buddy'),speechEl=document.getElementById('speech'),guyEl=document.getElementById('guy');
 // The IKEA manual figure: each pose is one continuous silhouette, plus the face
@@ -867,22 +1010,32 @@ function go(i){
   const prevIdx=idx-1<0?0:idx-1;
   const before=(MODEL.rejoin&&MODEL.rejoin[idx]!==undefined)?MODEL.vis(MODEL.rejoin[idx]):MODEL.vis(prevIdx);
   setVis(idx);tray.visible=(idx===0);
-  for(const k in P)P[k].obj.position.copy(P[k].pos);   // clear any interrupted entry animation
   newParts=[...MODEL.vis(idx)].filter(k=>!before.has(k)).concat((MODEL.reposition&&MODEL.reposition[idx])||[]);
   stepDur=(MODEL.slow&&MODEL.slow[idx])||0.7;
   stepT0=clock.getElapsedTime();
-  const groups=buildFits(idx);renderStep(idx);
-  if(idx===0){tray.scale.setScalar(trayScale());camTarget.set(0,MODEL.trayY*trayScale(),0);baseHalf=trayHalf();primaryMarker=null;cntEl.textContent='';}
+  renderStep(idx);
+  let groups;
+  if(idx===0){
+    const k=trayScale();tray.scale.setScalar(k);
+    if(MODEL.trayCenter)camTarget.copy(MODEL.trayCenter).multiplyScalar(k);else camTarget.set(0,MODEL.trayY*k,0);
+    baseHalf=trayHalf();groups=buildFits(idx,1);
+    const td=MODEL.trayDetail;
+    if(td){primaryMarker=td.at.clone().multiplyScalar(k);iTarget.copy(primaryMarker);iHalfTarget=td.half*k;iTheta=0.9;iPhi=0.95;cntEl.textContent=td.label;detailLabel.textContent='ACTUAL SIZE';}
+    else{primaryMarker=null;cntEl.textContent='';detailLabel.textContent='DETAIL';}
+  }
   else{
+    detailLabel.textContent='DETAIL';
     const f=focusFor(idx,before);camTarget.copy(f.center);
     baseHalf=Math.min(f.whole*1.05,Math.max(f.whole*0.45,f.radius*1.5+2.2));
+    groups=buildFits(idx,MODEL.autoAnn?Math.min(1.6,Math.max(0.4,baseHalf/13)):1);
     const nm=groups.flatMap(g=>g.marks);
     if(nm.length){
       primaryMarker=V(nm[0].pos[0],nm[0].pos[1],nm[0].pos[2]);iTarget.copy(primaryMarker);
-      const d0=V(nm[0].dir[0],nm[0].dir[1],nm[0].dir[2]).normalize();const ia=insetAngles(d0);iTheta=ia.th;iPhi=ia.ph;
+      const d0=V(nm[0].dir[0],nm[0].dir[1],nm[0].dir[2]).normalize();
+      const ia=(MODEL.ia&&MODEL.ia[idx])||insetAngles(d0);iTheta=ia.th;iPhi=ia.ph;
       // scale the close-up to the fastener, not to the spread of all the markers,
       // otherwise a multi-screw step zooms the "detail" view out to the main view's scale
-      iHalfTarget=(HOLE_R[groups[0].kind]||0.2)*2.6+0.5;
+      iHalfTarget=(MODEL.dh&&MODEL.dh[idx])||(HOLE_R[groups[0].kind]||0.2)*2.6+0.5;
       const first=groups[0];const cap=(step.it||[]).find(x=>x.part&&x.part===first.part)||(step.it||[]).find(x=>x.kind===first.kind);
       const q=cap?cap.qty:first.marks.length;cntEl.textContent=(q>1?q+'× ':'')+first.part;
     }else{primaryMarker=null;cntEl.textContent='';}
