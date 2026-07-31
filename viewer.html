@@ -348,6 +348,14 @@ function makeFit(kind){
   return box(0.6,0.6,0.6);
 }
 
+// Every part tag reads "Name <code>part ×qty · bag n</code>": one code chip holding all
+// the numbers, so the tags line up whichever model is loaded.
+function tagText(name,part,qty,bag){
+  let code=[part,qty&&'×'+qty].filter(Boolean).join(' ');
+  if(bag)code+=(code?' · ':'')+'bag '+bag;
+  return code?name+' <code>'+code+'</code>':name;
+}
+
 // ================= MODEL: BRIMNES =================
 function buildBrimnes(){
   const P={};
@@ -557,21 +565,21 @@ function buildBrimnes(){
   }
   // [name, part no., qty, fitting kind, bag] — bag 1 opens at step 1, bag 2 at step 30, bag 3 at step 37
   const trayItems=[
-    ['Dowel (short)','101345','×22','dowel','1+3'],['Dowel (medium)','101350','×8','dowel','1'],['Dowel (long)','101359','×8','dowel','1'],
-    ['Cam lock nut','110630','×14','cam','1'],['Cam fitting','114670','×4','bigcam','1'],['Spacer washer','110646','×12','ring','1'],
-    ['Plastic cap','122628','×6','cap','1'],['Adjusting bolt','114671','×4','bolt','1'],['Barrel connector','110115','×2','bolt','1'],
-    ['Allen key','100049','×1','allen','1'],['Screw (small)','100365','×44','screw','1+3'],['Screw (long)','102138','×12','screw','1'],
-    ['Double dowel screw','118331','×26','longscrew','1+3'],
-    ['Screw (support)','110789','×20','screw','2'],['Screw (slat mount)','105163','×8','screw','2'],
-    ['Machine screw','117327','×12','screw','2'],['Sleeve nut','191315','×8','sleeve','2'],
-    ['Screw (drawer base)','110519','×16','screw','3'],['Cam lock (drawer)','119030 / 118224','×16','drawercam','3'],
-    ['Screw (drawer front)','109567','×8','screw','3'],['Screw (drawer rail)','100359','×8','screw','3'],
-    ['Metal bracket','121370','×2','cube',''],['Centre bracket','116791','×2','cube',''],
-    ['Drawer runner (set)','139505','×4','rail',''],['Diagonal brace','117228','×4','rail',''],
-    ['Drawer rail','118301','×4','rail',''],['Handle','124328','×4','panel','']
+    ['Dowel (short)','101345',22,'dowel','1+3'],['Dowel (medium)','101350',8,'dowel','1'],['Dowel (long)','101359',8,'dowel','1'],
+    ['Cam lock nut','110630',14,'cam','1'],['Cam fitting','114670',4,'bigcam','1'],['Spacer washer','110646',12,'ring','1'],
+    ['Plastic cap','122628',6,'cap','1'],['Adjusting bolt','114671',4,'bolt','1'],['Barrel connector','110115',2,'bolt','1'],
+    ['Allen key','100049',1,'allen','1'],['Screw (small)','100365',44,'screw','1+3'],['Screw (long)','102138',12,'screw','1'],
+    ['Double dowel screw','118331',26,'longscrew','1+3'],
+    ['Screw (support)','110789',20,'screw','2'],['Screw (slat mount)','105163',8,'screw','2'],
+    ['Machine screw','117327',12,'screw','2'],['Sleeve nut','191315',8,'sleeve','2'],
+    ['Screw (drawer base)','110519',16,'screw','3'],['Cam lock (drawer)','119030 / 118224',16,'drawercam','3'],
+    ['Screw (drawer front)','109567',8,'screw','3'],['Screw (drawer rail)','100359',8,'screw','3'],
+    ['Metal bracket','121370',2,'cube',''],['Centre bracket','116791',2,'cube',''],
+    ['Drawer runner (set)','139505',4,'rail',''],['Diagonal brace','117228',4,'rail',''],
+    ['Drawer rail','118301',4,'rail',''],['Handle','124328',4,'panel','']
   ];
   const trayLabels=[],TC=5,TR=Math.ceil(trayItems.length/TC);
-  trayItems.forEach((it,i)=>{const col=i%TC,row=Math.floor(i/TC);const x=(col-(TC-1)/2)*5.8,z=(row-(TR-1)/2)*4.2;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x-0.4,2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+(it[4]?' · bag '+it[4]:'')+'</code>'});});
+  trayItems.forEach((it,i)=>{const col=i%TC,row=Math.floor(i/TC);const x=(col-(TC-1)/2)*5.8,z=(row-(TR-1)/2)*4.2;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x-0.4,2,z),text:tagText(it[0],it[1],it[2],it[4])});});
   const cheers={1:{m:"Great start — let's build this!",p:'wave'},12:{m:"Sides going on. Nice work!",p:'happy'},16:{m:"The frame's coming together!",p:'thumbsUp'},30:{m:"Rock-solid support. Keep going!",p:'happy'},37:{m:"Slats in — almost a bed!",p:'thumbsUp'},38:{m:"One drawer at a time — you'll build 4.",p:'wave'}};
   // direction a part arrives from, where the manual shows something other than a drop
   const entry={5:[0,0,1],16:[1,0,0],27:[0,0,1],43:[0,0,1],47:[0,0,1],48:[1,0,0]};
@@ -630,7 +638,7 @@ function buildLack(){
   LEGS.forEach(([sx,sz])=>reg('tmpl'+(sz>0?'F':'B')+(sx<0?'L':'R'),template120938(),[26*MM,TMPL_LEN,4*MM],[sx*legX,0,sz*faceZ],'Marking template 120938',{rotY:sz>0?Math.PI:0}));
 
   const S=[];
-  S[0]={name:'Parts, fittings & tools — actual size',txt:'Everything is drawn true to scale (1 grid square = 10 cm), so you can see how small the fittings really are. Scroll to zoom in and the labels open up as room allows. Tools: a screwdriver, a hammer and an awl. Work on a soft surface such as carpet so you do not scratch the table top.',it:[]};
+  S[0]={name:'Parts, fittings & tools — actual size',txt:'Everything is drawn true to scale (1 grid square = 10 cm), so you can see how small the fittings really are. Scroll to zoom in and the labels open up as room allows. Tools: a screwdriver, a hammer and an awl, plus marking template 120938 — it comes in the box but does not stay on the table. Work on a soft surface such as carpet so you do not scratch the table top.',it:[]};
   const st=(n,name,txt,it)=>{S[n]={name,txt,it};};
   const F=(k,c,p,nm)=>({kind:k,qty:c,part:p,name:nm});
   st(1,'Double-ended screws into the top','Turn 4 double-ended screws 115980 by hand into the corner holes on the underside of the table top, until the collar in the middle meets the wood. Roughly half the screw stays proud.',[F('s115980',4,'115980','Double-ended screw')]);
@@ -675,20 +683,20 @@ function buildLack(){
   const put=(obj,pos,text,dy)=>{obj.position.set(pos[0],pos[1],pos[2]);tray.add(obj);if(text)trayLabels.push({anchor:V(pos[0],-0.15,pos[2]),text,dy});};
   // Fittings lie along X; makeFit builds them along their own +Y axis.
   const lay=(kind,pos,text,dy)=>{const m=makeFit(kind);m.rotation.z=Math.PI/2;put(m,pos,text,dy);};
-  put(box(topW,topT,topD),[-7,topT/2,-5],'Table top <code>×1</code>');
-  put(box(shelfW,shelfT,shelfD),[-8,shelfT/2,6.5],'Lower shelf <code>×1</code>');
+  put(box(topW,topT,topD),[-7,topT/2,-5],tagText('Table top','',1));
+  put(box(shelfW,shelfT,shelfD),[-8,shelfT/2,6.5],tagText('Lower shelf','',1));
   [0,1,2,3].forEach(i=>{const l=box(legS,legS,legH);l.position.set(7.2+i*1.4,legS/2,-5);tray.add(l);});
-  trayLabels.push({anchor:V(9.3,-0.15,-0.6),text:'Leg <code>×4</code>'});
+  trayLabels.push({anchor:V(9.3,-0.15,-0.6),text:tagText('Leg','',4)});
   // The four fittings stay clustered so the close-up can show them together, 1:1,
   // beside a 10 cm bar; their labels are fanned out instead.
-  const bar=box(2,0.07,0.16);bar.children[0].material=hlMat;put(bar,[6.4,0.035,3.3],'10 cm — for scale',-4);
-  lay('s115980',[6.4,3*MM,4.4],'Double-ended screw <code>115980</code> <code>×4</code>',24);
-  lay('s108530',[6.4,2.5*MM,5.3],'Screw <code>108530</code> <code>×4</code>',48);
-  lay('s109041',[6.4,2.1*MM,6.2],'Screw <code>109041</code> <code>×4</code>',72);
-  put(bracket120298(),[6.4,17*MM,7.1],'Angle bracket <code>120298</code> <code>×4</code>',96);
+  const bar=box(2,0.07,0.16);bar.children[0].material=hlMat;put(bar,[6.4,0.035,3.3],tagText('10 cm — for scale'),-4);
+  lay('s115980',[6.4,3*MM,4.4],tagText('Double-ended screw','115980',4),24);
+  lay('s108530',[6.4,2.5*MM,5.3],tagText('Screw','108530',4),48);
+  lay('s109041',[6.4,2.1*MM,6.2],tagText('Screw','109041',4),72);
+  put(bracket120298(),[6.4,17*MM,7.1],tagText('Angle bracket','120298',4),96);
   const tmpl=new THREE.Group(),tmplInner=template120938();
   tmplInner.rotation.x=Math.PI/2;tmpl.add(tmplInner);tmpl.rotation.y=Math.PI/2;
-  put(tmpl,[6.4,4*MM,11],'Marking template <code>120938</code> — a tool, it does not stay on the table <code>×1</code>');
+  put(tmpl,[6.4,4*MM,11],tagText('Marking template','120938',1));
   ['driver','hammer','awl'].forEach((k,i)=>{const t=makeFit(k);t.rotation.z=Math.PI/2;t.position.set(-7+i*7,0.3,14.5);tray.add(t);});
   trayLabels.push({anchor:V(0,-0.15,15.8),text:'You supply: screwdriver · hammer · awl'});
   const gp=[];
@@ -697,7 +705,7 @@ function buildLack(){
   tray.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gp,3)),new THREE.LineBasicMaterial({color:0x141414,transparent:true,opacity:0.16})));
 
   const cheers={1:{m:"Off to a great start!",p:'wave'},4:{m:"First brackets on. Nice!",p:'thumbsUp'},7:{m:"Shelf's in — looking good!",p:'happy'}};
-  return {name:'LACK coffee table 90×55',count:8,P,steps:S,fx,vis,trayLabels,trayY:1,trayFit:{v:17,x:30},trayCenter:V(-2.5,1,2),
+  return {name:'LACK coffee table',count:8,P,steps:S,fx,vis,trayLabels,trayY:1,trayFit:{v:17,x:30},trayCenter:V(-2.5,1,2),
     trayDetail:{at:V(6.4,0.12,5.2),half:2.2,label:'fittings & 10 cm bar, 1:1'},autoAnn:true,
     dh:{1:1.25,3:0.85,4:0.55,5:0.85,6:0.55,8:0.6},
     // Hand-picked close-up angles: the generic broadside guess ends up looking straight
