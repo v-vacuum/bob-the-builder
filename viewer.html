@@ -112,8 +112,17 @@ const fitGroup=new THREE.Group();scene.add(fitGroup);
 
 const faceMat=new THREE.MeshBasicMaterial({color:0xffffff,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
 const darkMat=new THREE.MeshBasicMaterial({color:0x141414});
-const hlMat=new THREE.MeshBasicMaterial({color:0xe6502e});
+// DoubleSide: the target ring is oriented along the insertion axis, so a single-sided
+// material is back-face culled for every fastener driven away from the camera.
+const hlMat=new THREE.MeshBasicMaterial({color:0xe6502e,side:THREE.DoubleSide});
+const holeMat=new THREE.MeshBasicMaterial({color:0x141414,side:THREE.DoubleSide,transparent:true,opacity:.8,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
 const lineMat=new THREE.LineBasicMaterial({color:0x141414});
+// per-kind radius of the pilot hole drawn at the target point, and the length the
+// fitting occupies along its insertion axis (used to park the arrow clear of the head)
+const HOLE_R={dowel:.17,screw:.13,longscrew:.13,bolt:.16,cam:.45,bigcam:.62,drawercam:.46,cap:.3,cube:.22,sleeve:.22,ring:.2,allen:.5,rail:.14,panel:.14};
+const FIT_LEN={screw:1.6,longscrew:2.9,bolt:1.75,dowel:.9,cam:.95,bigcam:1.1,drawercam:.8,cap:.55,cube:.75,sleeve:.7,rail:.75,ring:.6,allen:1.2,lbracket:.8,panel:1.0};
+const SPIN={screw:1,longscrew:1,bolt:1};        // driven fasteners: continuous rotation
+const LOCK={cam:1,bigcam:1,drawercam:1,allen:1};                     // cams: a quarter-turn once seated
 function box(w,h,d){const g=new THREE.Group();const geo=new THREE.BoxGeometry(w,h,d);g.add(new THREE.Mesh(geo,faceMat));g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),lineMat));return g;}
 function cyl(r,h,s){const g=new THREE.Group();const geo=new THREE.CylinderGeometry(r,r,h,s||16);g.add(new THREE.Mesh(geo,faceMat));g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo,25),lineMat));return g;}
 function makeFit(kind){
@@ -121,12 +130,39 @@ function makeFit(kind){
   if(kind==='longscrew'){const g=new THREE.Group();g.add(cyl(0.12,2.6,12));return g;}
   if(kind==='bolt'){const g=new THREE.Group();g.add(cyl(0.14,1.5,12));const hd=cyl(0.3,0.18,14);hd.position.y=0.8;g.add(hd);return g;}
   if(kind==='dowel')return cyl(0.16,1.2,12);
-  if(kind==='cam'){const g=new THREE.Group();g.add(cyl(0.5,0.42,20));const slot=box(0.12,0.06,0.7);slot.position.y=0.22;slot.children[0].material=darkMat;g.add(slot);return g;}
-  if(kind==='cap')return box(0.6,0.5,0.28);
+  // 110630: squat barrel, cross recess on top, spiral cam channel round the side
+  if(kind==='cam'){
+    const g=new THREE.Group();g.add(cyl(0.45,0.68,20));
+    const a=box(0.1,0.07,0.5),b=box(0.5,0.07,0.1);
+    a.position.y=b.position.y=0.33;a.children[0].material=darkMat;b.children[0].material=darkMat;g.add(a,b);
+    const spiral=new THREE.Mesh(new THREE.TorusGeometry(0.46,0.05,6,14,Math.PI*1.1),darkMat);
+    spiral.rotation.x=Math.PI/2;spiral.rotation.z=0.5;spiral.position.y=-0.12;g.add(spiral);
+    return g;
+  }
+  // 114670: spoked wheel with a hex socket for the Allen key, on a coiled base
+  if(kind==='bigcam'){
+    const g=new THREE.Group();
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.12,8,22),faceMat);rim.rotation.x=Math.PI/2;rim.position.y=0.18;g.add(rim);
+    for(let i=0;i<5;i++){const sp=box(0.6,0.16,0.13);sp.position.set(Math.cos(i*1.2566)*0.31,0.18,Math.sin(i*1.2566)*0.31);sp.rotation.y=-i*1.2566;g.add(sp);}
+    const hex=cyl(0.19,0.3,6);hex.position.y=0.22;hex.children[0].material=darkMat;g.add(hex);
+    const base=cyl(0.62,0.3,22);base.position.y=-0.18;g.add(base);
+    return g;
+  }
+  // 119030 / 118224: straight slot with a direction arrow, toothed skirt
+  if(kind==='drawercam'){
+    const g=new THREE.Group();g.add(cyl(0.46,0.5,20));
+    const slot=box(0.11,0.07,0.62);slot.position.y=0.24;slot.children[0].material=darkMat;g.add(slot);
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.11,0.16,10),darkMat);tip.rotation.x=Math.PI/2;tip.position.set(0,0.25,0.36);g.add(tip);
+    const teeth=cyl(0.47,0.14,20);teeth.position.y=-0.22;teeth.children[0].material=darkMat;g.add(teeth);
+    return g;
+  }
+  if(kind==='sleeve'){const g=new THREE.Group();const b=box(0.6,0.5,0.6),lip=box(0.6,0.2,0.22);lip.position.set(0,0.3,0.36);g.add(b,lip);return g;}
+  if(kind==='cap'){const g=new THREE.Group();const b=box(0.6,0.34,0.28);g.add(b);const p1=cyl(0.05,0.5,8),p2=cyl(0.05,0.5,8);p1.position.set(-0.16,-0.42,0);p2.position.set(0.16,-0.42,0);g.add(p1,p2);return g;}
   if(kind==='cube')return box(0.7,0.7,0.7);
   if(kind==='rail')return box(0.4,0.5,3.6);
-  if(kind==='ring')return cyl(0.4,0.2,20);
-  if(kind==='allen'){const g=new THREE.Group();const a=box(0.3,0.3,3);const b=box(0.3,1.8,0.3);b.position.set(0,-0.9,1.5);g.add(a,b);return g;}
+  if(kind==='ring'){const g=new THREE.Group();const r=new THREE.Mesh(new THREE.TorusGeometry(0.3,0.13,8,20),faceMat);r.rotation.x=Math.PI/2;g.add(r);g.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.43,0.43,0.26,20)),lineMat));return g;}
+  // driver leg runs along local -Y so its tip lands on the target point; the handle hangs clear
+  if(kind==='allen'){const g=new THREE.Group();const drive=box(0.26,2.2,0.26);drive.position.y=0.38;const handle=box(2.4,0.26,0.26);handle.position.set(1.2,1.48,0);g.add(drive,handle);return g;}
   if(kind==='lbracket'){const g=new THREE.Group();const a=box(0.75,0.14,0.55),b=box(0.14,0.75,0.55);a.position.set(0,-0.3,0);b.position.set(-0.3,0.06,0);g.add(a,b);return g;}
   if(kind==='panel')return box(3,1.4,0.22);
   return box(0.6,0.6,0.6);
@@ -147,156 +183,238 @@ function buildBrimnes(){
   reg('runnerCR',box(0.35,0.5,L-3),[0.35,0.5,L-3],[2.0,H*0.7,0],'Runner 139505');
   reg('runL',box(0.35,0.5,L-3),[0.35,0.5,L-3],[-W/2+1,H*0.7,0],'Runner 139505');
   reg('runR',box(0.35,0.5,L-3),[0.35,0.5,L-3],[W/2-1,H*0.7,0],'Runner 139505');
-  reg('brk1',box(0.4,1.6,1.6),[0.4,1.6,1.6],[-W/2+0.3,1.6,-L/4],'Bracket 121370');
-  reg('brk2',box(2.4,2.4,0.5),[2.4,2.4,0.5],[0,2.4,-L/2+0.4],'Corner bracket 116791');
-  reg('railBack',box(W-2*t,0.6,0.8),[W-2*t,0.6,0.8],[0,H+0.3,-L/2+2.6],'Support rail 117228');
-  reg('railFront',box(W-2*t,0.6,0.8),[W-2*t,0.6,0.8],[0,H+0.3,L/2-2.6],'Support rail 118301');
-  reg('beam',box(0.9,0.9,L-3),[0.9,0.9,L-3],[0,H+0.1,0],'Centre support beam');
+  // the two long battens the centre unit is lowered onto at step 10 (steps 7-9 work on these)
+  reg('battenL',box(0.75,0.6,L-1),[0.75,0.6,L-1],[-2.4,0.3,0],'Batten');
+  reg('battenR',box(0.75,0.6,L-1),[0.75,0.6,L-1],[2.4,0.3,0],'Batten');
+  // 121370 sits proud of the side panel's inner face so it is not swallowed by it
+  reg('brk1',box(0.5,1.0,0.9),[0.5,1.0,0.9],[-W/2+t+0.25,2.2,0],'Bracket 121370');
+  // 116791 are the sockets the centre beam drops into, one per end panel, centred on the width
+  reg('brk2',box(2.4,2.4,0.4),[2.4,2.4,0.4],[0,2.6,-L/2+t+0.2],'Centre bracket 116791');
+  reg('brk3',box(2.4,2.4,0.4),[2.4,2.4,0.4],[0,2.6,L/2-t-0.2],'Centre bracket 116791');
+  // 117228 are the slat-support ledges along the long sides, not full-width cross rails
+  reg('railBack',box(0.8,0.6,L-2*t),[0.8,0.6,L-2*t],[-W/2+t+0.5,H-0.5,0],'Support ledge (L)');
+  reg('railFront',box(0.8,0.6,L-2*t),[0.8,0.6,L-2*t],[W/2-t-0.5,H-0.5,0],'Support ledge (R)');
+  // centre beam in two telescoping halves so step 35 can actually extend it
+  const bHalf=(L-2*t)/2+0.6;
+  reg('beamA',box(0.9,0.9,bHalf),[0.9,0.9,bHalf],[0,H-0.35,-L/2+t+bHalf/2],'Centre beam (hooked half)');
+  reg('beamB',box(0.72,0.72,bHalf),[0.72,0.72,bHalf],[0,H-0.35,L/2-t-bHalf/2],'Centre beam (telescoping half)');
   // slats: children RELATIVE to group, group anchored at rest height (fixes floating/offset)
-  const slatY=H+0.75;
+  // two roll-up bases side by side, each spanning head to foot and unrolling along the length.
+  // (Splitting one base into a head half and a foot half is not how a slat roll works.)
+  const slatY=H-0.1,halfW=(W-2*t)/2;
   const slatsA=new THREE.Group(),slatsB=new THREE.Group();content.add(slatsA,slatsB);slatsA.visible=slatsB.visible=false;
-  for(let i=0;i<24;i++){const s=box(W-2*t,0.26,0.85);s.position.set(0,0,-L/2+2.5+i*((L-5)/23));(i<12?slatsA:slatsB).add(s);}
+  [[slatsA,-halfW/2-0.06],[slatsB,halfW/2+0.06]].forEach(([grp,cx])=>{
+    for(let i=0;i<20;i++){const s=box(halfW-0.12,0.26,0.85);s.position.set(cx,0,-L/2+2.5+i*((L-5)/19));grp.add(s);}
+  });
   slatsA.position.set(0,slatY,0);slatsB.position.set(0,slatY,0);
-  P['slatsA']={obj:slatsA,size:[W,0.4,L],pos:V(0,slatY,0),name:'Slats (roll 1)'};
-  P['slatsB']={obj:slatsB,size:[W,0.4,L],pos:V(0,slatY,0),name:'Slats (roll 2)'};
-  reg('fd1',box(W/2-1.2,H*0.7,L*0.30),[W/2-1.2,H*0.7,L*0.30],[-W/4+0.2,H*0.42,L*0.28],'Drawer');
-  reg('fd2',box(W/2-1.2,H*0.7,L*0.30),[W/2-1.2,H*0.7,L*0.30],[W/4-0.2,H*0.42,L*0.28],'Drawer');
-  reg('fd3',box(W*0.30,H*0.7,L/2-1.4),[W*0.30,H*0.7,L/2-1.4],[W/4+0.4,H*0.42,-L/4+0.4],'Drawer');
-  reg('fd4',box(W*0.30,H*0.7,L/2-1.4),[W*0.30,H*0.7,L/2-1.4],[W/4+0.4,H*0.42,L/8-1.2],'Drawer');
-  reg('dBase',box(6,0.4,7),[6,0.4,7],[0,0.2,0],'Drawer base');
+  P['slatsA']={obj:slatsA,size:[halfW,0.4,L],pos:V(0,slatY,0),name:'Slat base (left)'};
+  P['slatsB']={obj:slatsB,size:[halfW,0.4,L],pos:V(0,slatY,0),name:'Slat base (right)'};
+  // four identical drawers, two per long side, opening outwards along X.
+  // The old boxes overlapped each other and passed through the centre panels.
+  const dw=4.6,dh=H*0.7,dl=9.2,dxo=5.05,dzo=5.0;
+  reg('fd1',box(dw,dh,dl),[dw,dh,dl],[-dxo,H*0.42,-dzo],'Drawer');
+  reg('fd2',box(dw,dh,dl),[dw,dh,dl],[-dxo,H*0.42, dzo],'Drawer');
+  reg('fd3',box(dw,dh,dl),[dw,dh,dl],[ dxo,H*0.42,-dzo],'Drawer');
+  reg('fd4',box(dw,dh,dl),[dw,dh,dl],[ dxo,H*0.42, dzo],'Drawer');
   reg('dLeft',box(0.4,3,7),[0.4,3,7],[-3,1.7,0],'Drawer side (L)');
   reg('dRight',box(0.4,3,7),[0.4,3,7],[3,1.7,0],'Drawer side (R)');
   reg('dBack',box(6,3,0.4),[6,3,0.4],[0,1.7,-3.5],'Drawer back');
+  reg('dInner',box(5.6,3,0.4),[5.6,3,0.4],[0,1.7,3.3],'Drawer front panel');
+  reg('dBase',box(5.7,0.25,6.9),[5.7,0.25,6.9],[0,0.75,0],'Drawer bottom (hardboard)');
   reg('dRunL',box(0.3,0.3,6),[0.3,0.3,6],[-3.25,0.4,0],'Runner 139505');
   reg('dRunR',box(0.3,0.3,6),[0.3,0.3,6],[3.25,0.4,0],'Runner 139505');
-  reg('dRail',box(5,0.3,0.3),[5,0.3,0.3],[0,3.15,0],'Rail 118301');
-  reg('dFront',box(6.6,3.4,0.5),[6.6,3.4,0.5],[0,1.7,3.6],'Drawer front 124328');
-  reg('dHandle',box(1.6,0.4,0.3),[1.6,0.4,0.3],[0,1.7,3.9],'Handle');
+  reg('dRail',box(0.3,0.3,6.6),[0.3,0.3,6.6],[0,0.4,0],'Bottom rail 118301');
+  reg('dHandle',box(4.4,0.45,0.34),[4.4,0.45,0.34],[0,2.6,3.72],'Handle 124328');
 
   const S=[];
   S[0]={name:'Sort tools & fittings',txt:'The full parts list, laid out and static. Drag to rotate. You also need a screwdriver and a hammer.',it:[]};
   const st=(n,name,txt,it)=>{S[n]={name,txt,it};};
   const F=(k,c,p,nm)=>({kind:k,qty:c,part:p,name:nm});
-  st(1,'Cam nuts into centre panels','Insert 2 cam lock nuts and press in the barrel connectors.',[F('cam',2,'110630','Cam lock nut'),F('bolt',2,'110115','Barrel connector')]);
-  st(2,'Screw runner to CL','Fix drawer runner 139505 with 3 screws. Do not use 100359.',[F('screw',3,'100365','Screw'),F('rail',1,'139505','Drawer runner')]);
-  st(3,'Screw runner to CR','Fix the second runner with 3 screws.',[F('screw',3,'100365','Screw'),F('rail',1,'139505','Drawer runner')]);
-  st(4,'Tap in dowels','Hammer 8 dowels into the panel edges.',[F('dowel',8,'101350','Dowel')]);
-  st(5,'Press the panels together','Push the sub-assemblies onto the barrel connectors.',[F('bolt',2,'110115','Barrel connector')]);
-  st(6,'Insert cam locks','Drop in 2 cam lock nuts.',[F('cam',2,'110630','Cam lock nut')]);
-  st(7,'Hammer in end caps','Tap 2 plastic caps flush.',[F('cap',2,'122628','Plastic cap')]);
-  st(8,'Double-ended screws','Turn in 2 double dowel screws.',[F('screw',2,'118331','Double dowel screw')]);
-  st(9,'Tap in dowels','Hammer 6 dowels into place.',[F('dowel',6,'101345','Dowel')]);
-  st(10,'Join the two panels','Press the assembled centre panels together.',[]);
-  st(11,'Tighten cam locks','Lock 2 cams a half-turn clockwise.',[F('cam',2,'110630','Cam lock nut')]);
-  st(12,'Screws + spacers to sides','Drive 12 screws through spacers 110646; add runner 139505.',[F('screw',12,'102138','Screw'),F('ring',12,'110646','Spacer'),F('rail',1,'139505','Runner')]);
-  st(13,'Hammer in caps','Tap 4 plastic caps flush.',[F('cap',4,'122628','Plastic cap')]);
-  st(14,'Adjusting bolts','Turn in 4 adjusting bolts.',[F('bolt',4,'114671','Adjusting bolt')]);
-  st(15,'Double-ended screws','Turn in 8 double dowel screws.',[F('screw',8,'118331','Double dowel screw')]);
-  st(16,'Slide the panels on','Push the side panels onto the dowels.',[F('panel',2,'','Side panel')]);
-  st(17,'Insert cam locks','Drop in 4 cam lock nuts.',[F('cam',4,'110630','Cam lock nut')]);
-  st(18,'Large cam fittings','Seat 4 cam fittings.',[F('cam',4,'114670','Cam fitting')]);
-  st(19,'Dowels into head panel','Tap 4 long dowels into the head panel.',[F('dowel',4,'101359','Dowel (long)')]);
-  st(20,'Bracket + screws','Fix metal bracket 121370 with 2 screws.',[F('screw',2,'100365','Screw'),F('cube',1,'121370','Bracket')]);
-  st(21,'Hold the side rail','Position the rail with a helper — nothing to fasten yet.',[F('panel',1,'117228','Side rail')]);
-  st(22,'Connect with Allen key','Turn the cam fitting with the Allen key.',[F('allen',1,'100049','Allen key')]);
-  st(23,'Drive one screw','Add a single screw.',[F('screw',1,'100365','Screw')]);
-  st(24,'Position the panel','Line the panel up — no fastener this step.',[]);
-  st(25,'Tighten the cam','Turn the cam fitting home with the Allen key.',[F('allen',1,'100049','Allen key')]);
-  st(26,'Bracket + screw','Fix a bracket with 1 screw.',[F('screw',1,'100365','Screw')]);
-  st(27,'Slide the end panel','Push the foot panel into place.',[F('panel',1,'','Foot panel')]);
-  st(28,'Tighten cams','Turn 2 cams with the Allen key.',[F('allen',1,'100049','Allen key')]);
-  st(29,'Tighten underside cams','Flip and lock 4 cams on the underside.',[F('cam',4,'110630','Cam lock nut')]);
-  st(30,'Mid support screws','Drive 16 support screws 110789. Do not use 105163.',[F('screw',16,'110789','Screw')]);
-  st(31,'Corner brackets','Fix corner bracket 116791 with 2 screws.',[F('screw',2,'110789','Screw'),F('cube',2,'116791','Corner bracket')]);
-  st(32,'Machine screws + rail','Bolt support rail 117228 with 8 machine screws.',[F('screw',8,'117327','Machine screw'),F('panel',1,'117228','Support rail')]);
-  st(33,'Machine screws','Add 4 more machine screws.',[F('screw',4,'117327','Machine screw')]);
-  st(34,'Place centre beam','Lay the centre support beam across the frame.',[F('panel',1,'','Centre support beam')]);
-  st(35,'Extend the beam','Extend and seat the beam ends.',[F('panel',1,'','Centre support beam')]);
-  st(36,'Sleeve nuts for slats','Fit 8 sleeve nuts 191315.',[F('cube',8,'191315','Sleeve nut')]);
-  st(37,'Roll out the slats','Unroll both slat sections and lay them flat on the frame.',[F('panel',2,'','Slat section')]);
-  st(38,'Dowels into drawer sides','Tap 4 dowels into the drawer side.',[F('dowel',4,'101345','Dowel')]);
-  st(39,'Double-ended screws','Turn in 4 double dowel screws.',[F('screw',4,'118331','Double dowel screw')]);
-  st(40,'Press sides on','Push the sides onto the base and back.',[]);
-  st(41,'Cam locks','Lock 4 cams 119030 / 118224.',[F('cam',4,'119030','Cam lock')]);
-  st(42,'Insert drawer base','Drop the base panel into the runners.',[F('panel',1,'','Drawer base')]);
-  st(43,'Slide base home','Slide the base fully in.',[F('panel',1,'','Drawer base')]);
-  st(44,'Hammer drawer screws','Drive 4 screws 110519 from below.',[F('screw',4,'110519','Screw')]);
-  st(45,'Screw on runners','Fix the runners with 6 screws.',[F('screw',6,'100365','Screw'),F('rail',2,'139505','Runner')]);
-  st(46,'Attach drawer rail','Fit rail 118301 with 2 screws 100359.',[F('screw',2,'100359','Screw'),F('panel',1,'118301','Drawer rail')]);
-  st(47,'Fix the drawer front','Attach front 124328 and handle with 2 screws.',[F('screw',2,'109567','Screw'),F('panel',1,'124328','Drawer front')]);
-  st(48,'Slide drawers into bed','Fit all four drawers. Never open two at once — the bed can tip.',[F('panel',4,'','Drawer')]);
+  st(1,'Cam nuts and connectors','Drop 2 cam lock nuts 110630 into the face holes and screw the 2 barrel connectors 110115 into the end edge. Use 110630 — not 119030 or 118224.',[F('cam',2,'110630','Cam lock nut'),F('bolt',2,'110115','Barrel connector')]);
+  st(2,'Runners on the first face','Screw a runner 139505 to each centre panel with 3 screws — 6 in all. Match the CL / CR mark stamped on the runner to the panel. Do not use 100359.',[F('screw',6,'100365','Screw'),F('rail',2,'139505','Drawer runner')]);
+  st(3,'Runners on the second face','Turn both panels over and repeat: one runner and 3 screws on each — 6 more. The CL / CR handing swaps on this face. Do not use 100359.',[F('screw',6,'100365','Screw'),F('rail',2,'139505','Drawer runner')]);
+  st(4,'Tap in dowels','Tap 8 dowels into the holes in the panel end edges. Use 101350 — not the short 101345 or the long 101359.',[F('dowel',8,'101350','Dowel')]);
+  st(5,'Press the panels together','Slide the panels together over the dowels until the joints close. Press each barrel connector fully home — a partly seated connector leaves a gap and the cam will not lock.',[]);
+  st(6,'Insert and turn the cam locks','Drop 2 cam locks into the face holes at the joint and give each a half-turn clockwise with a screwdriver. Use 110630 — not 119030 or 118224.',[F('cam',2,'110630','Cam lock nut')]);
+  st(7,'Caps into the battens','Press 2 plastic caps into the middle of the two long battens — one each. Each cap has two prongs.',[F('cap',2,'122628','Plastic cap')]);
+  st(8,'Dowel screws into the battens','Screw one double-ended screw into the middle of each batten with a screwdriver.',[F('longscrew',2,'118331','Double dowel screw')]);
+  st(9,'Push in dowels by hand','Push in 6 dowels by hand — one in each batten end, one beside each dowel screw. Use 101345, not the long 101359.',[F('dowel',6,'101345','Dowel')]);
+  st(10,'Lower the unit onto the battens','Lift the assembled centre unit and lower it straight down onto the two battens so the dowels and screws enter the holes.',[]);
+  st(11,'Tighten the cam locks','Drop in 2 cam locks and turn each a half-turn clockwise with a screwdriver. Use 110630 — not 119030 or 118224.',[F('cam',2,'110630','Cam lock nut')]);
+  st(12,'Runners onto the end panels','Lay each panel face up. Screw a runner 139505 on with 6 screws 102138 — the spacer washer 110646 goes between runner and panel. Check the CL / CR mark on each runner.',[F('screw',12,'102138','Screw'),F('ring',12,'110646','Spacer washer'),F('rail',2,'139505','Drawer runner')]);
+  st(13,'Caps into the bottom edge','Press 2 plastic caps into the bottom edge of each panel, near the ends.',[F('cap',4,'122628','Plastic cap')]);
+  st(14,'Adjusting bolts','Turn 4 adjusting bolts in by hand — no tool needed.',[F('bolt',4,'114671','Adjusting bolt')]);
+  st(15,'Double-ended screws','Drive 8 double dowel screws into the inner face of each panel with a screwdriver.',[F('longscrew',8,'118331','Double dowel screw')]);
+  st(16,'Slide the first panel on','Push the panel horizontally onto the dowels and double-ended screws until it seats.',[F('panel',1,'','Panel')]);
+  st(17,'Insert cam locks','Drop 4 cam locks into the joints and turn each a half-turn clockwise. Use 110630 — not 119030 or 118224.',[F('cam',4,'110630','Cam lock nut')]);
+  st(18,'Press in the cam fittings','Press 4 cam fittings into the face holes at the rail ends — 2 per rail. Push by hand; do not turn them yet.',[F('bigcam',4,'114670','Cam fitting')]);
+  st(19,'Dowels into the rail ends','Tap 2 long dowels into each end of both side rails — 8 in all. Use 101359, not the short 101345.',[F('dowel',8,'101359','Dowel (long)')]);
+  st(20,'Brackets onto the rails','Screw bracket 121370 to the middle of each side rail — 2 brackets, 4 screws. Do not use 100359.',[F('screw',4,'100365','Screw'),F('cube',2,'121370','Bracket')]);
+  st(21,'Lift the first side rail','Stand one side rail up against the frame so its end dowels line up with the holes. Nothing to fasten yet.',[F('panel',1,'','Side rail')]);
+  st(22,'Push the rail on, then turn the cam','Line the rail up with the pegs, push it home, then turn cam fitting 114670 a half-turn with the Allen key until the joint pulls tight.',[F('allen',1,'100049','Allen key'),F('bigcam',1,'114670','Cam fitting')]);
+  st(23,'Bracket to the centre panel','Screw the 121370 bracket to the centre panel with 2 screws. Do not use 100359.',[F('screw',2,'100365','Screw'),F('cube',1,'121370','Bracket')]);
+  st(24,'Lower the second side rail','Lift the second side rail into place on the near side and line its pegs up. Nothing to fasten yet.',[F('panel',1,'','Side rail')]);
+  st(25,'Lock the second side rail','Push the second rail onto the pegs, then turn its cam fitting a half-turn with the Allen key.',[F('allen',1,'100049','Allen key'),F('bigcam',1,'114670','Cam fitting')]);
+  st(26,'Bracket to the centre panel','Screw the second 121370 bracket to the centre panel with 2 screws. Do not use 100359.',[F('screw',2,'100365','Screw'),F('cube',1,'121370','Bracket')]);
+  st(27,'Slide the second end panel on','Slide the second end panel onto the two rail ends, along the length of the bed, until the pegs seat.',[F('panel',1,'','End panel')]);
+  st(28,'Tighten the two foot-end cams','Push the panel fully home, then turn each of the 2 cam fittings clockwise with the Allen key until the seam closes.',[F('allen',1,'100049','Allen key'),F('bigcam',2,'114670','Cam fitting')]);
+  st(29,'Cam nuts at the bottom corners','Drop 4 cam lock nuts into the holes in the bottom rails at the corners, then turn each clockwise with a screwdriver. The bed stays upright.',[F('cam',4,'110630','Cam lock nut')]);
+  st(30,'Screw down the slat-support rails','Drive 16 screws horizontally through the slots in the support rails into the side and centre panels. Use 110789, not 105163. The mattress must not overhang the frame.',[F('screw',16,'110789','Screw')]);
+  st(31,'Centre brackets — head and foot','Screw bracket 116791 to the inside of the head and foot panels, centred on the width, 2 screws each — 4 in all. Use 110789, not 105163.',[F('screw',4,'110789','Screw'),F('cube',2,'116791','Centre bracket')]);
+  st(32,'Fit the 4 diagonal braces','Hook in the 4 adjustable braces 117228 — each runs from a centre bracket out to a side, forming a diamond. Fasten each end with a machine screw. Leave them slack for now.',[F('screw',8,'117327','Machine screw'),F('rail',4,'117228','Diagonal brace')]);
+  st(33,'Square the frame, then lock the braces','Slide each brace until the frame is a true rectangle and the braces form an even diamond — the sides must not bow out or pinch in. Then lock each with 1 screw through its slot.',[F('screw',4,'117327','Machine screw')]);
+  st(34,'Hook the beam at the head end','Drop the hooked end of the centre support beam onto the bracket in the middle of the head panel.',[F('panel',1,'','Centre support beam')]);
+  st(35,'Telescope the beam to the foot','Slide the inner half of the beam out along the bed until it drops onto the bracket at the middle of the foot panel.',[F('panel',1,'','Centre support beam')]);
+  st(36,'Sleeve nuts and screws','Drop 8 sleeve nuts into the head and foot rails and tighten a screw up into each from underneath. Skip this step if you fit a sprung mattress base instead of a slatted one.',[F('sleeve',8,'191315','Sleeve nut'),F('screw',8,'105163','Screw')]);
+  st(37,'Unroll the slat bases','Unroll each slat base from the head end down to the foot, then press the end fittings onto the 8 sleeve nuts. Next come the drawers — steps 38–47 build ONE drawer, so repeat them 4×.',[F('panel',2,'','Slat base'),F('cap',8,'191315','Sleeve nut')]);
+  st(38,'Drawer 1 of 4 — dowels into the sides','Tap 2 dowels into the back end edge of each drawer side — 4 in total.',[F('dowel',4,'101345','Dowel')]);
+  st(39,'Dowel screws into the back','Turn 4 double dowel screws into the face of the drawer back, two where each side will land.',[F('longscrew',4,'118331','Double dowel screw')]);
+  st(40,'Press the sides on','Push both drawer sides straight down onto the dowels and screws in the back panel. Press by hand until the joints close.',[F('panel',2,'','Drawer side')]);
+  st(41,'Lock the cams','Push 4 cam locks into the face holes on the outside of each side, then turn each with a screwdriver to grip the screw. Use 119030 / 118224 — not 110630.',[F('drawercam',4,'119030','Cam lock 119030 / 118224')]);
+  st(42,'Slide in the drawer bottom','Lower the thin hardboard bottom down between the sides — it slides into the grooves in both side panels.',[F('panel',1,'','Drawer bottom')]);
+  st(43,'Fit the drawer front panel','Swing the front panel onto the front edges of both sides so the bottom panel enters its groove.',[F('panel',1,'','Drawer front panel')]);
+  st(44,'Hammer in the front fixings','Tap 4 dowel screws through the drawer sides into the front panel — 2 per side. Use a hammer.',[F('screw',4,'110519','Hammer-in dowel screw')]);
+  st(45,'Screw the runners on','Turn the drawer over and fix a runner 139505 to each side with 3 screws — 6 in all. Use 100365, not 100359.',[F('screw',6,'100365','Screw'),F('rail',2,'139505','Runner')]);
+  st(46,'Fit the drawer bottom rail','With the drawer still upside down, drop rail 118301 over the screw at the back, swing it flat against the bottom and fix each end with a screw 100359.',[F('screw',2,'100359','Screw'),F('rail',1,'118301','Bottom rail')]);
+  st(47,'Screw on the handle','From inside the drawer, drive 2 screws forward through the front panel into the ends of handle 124328.',[F('screw',2,'109567','Screw'),F('panel',1,'124328','Handle')]);
+  st(48,'Slide the drawers into the bed','Repeat steps 38–47 for all four drawers, then slide them in — two on each side. Do not leave a drawer open: you can trip over it.',[F('panel',4,'','Drawer')]);
 
   const CLx=-2.4,CRx=2.4,rCLx=-2.0,rCRx=2.0,sLx=-W/2+t/2,sRx=W/2-t/2,rLx=-W/2+1,rRx=W/2-1,headZ=-L/2+t/2,footZ=L/2-t/2,runY=H*0.7,yT=H;
   const topOf=(x,n,z0,z1)=>A(z0===undefined?-7:z0,z1===undefined?7:z1,n).map(z=>mk(x,yT,z,0,-1,0));
   const runOf=(x,n,sx,z0,z1)=>A(z0===undefined?-7:z0,z1===undefined?7:z1,n).map(z=>mk(x,runY,z,sx,0,0));
   function fx(n){
-    const g=[];const G=(kind,part,marks)=>marks.length&&g.push({kind,part,marks});
+    const g=[];const G=(kind,part,marks,press)=>marks.length&&g.push({kind,part,marks,press});
     switch(n){
-      case 1:G('cam','110630',[mk(CLx,yT,-4,0,-1,0),mk(CRx,yT,-4,0,-1,0)]);G('bolt','110115',[mk(CLx,2,headZ+0.1,0,0,-1),mk(CRx,2,headZ+0.1,0,0,-1)]);break;
-      case 2:G('screw','100365',runOf(rCLx,3,-1));break;
-      case 3:G('screw','100365',runOf(rCRx,3,1));break;
-      case 4:G('dowel','101350',[...topOf(CLx,4,-8,8),...topOf(CRx,4,-8,8)]);break;
-      case 6:G('cam','110630',[mk(CLx,yT,2,0,-1,0),mk(CRx,yT,2,0,-1,0)]);break;
-      case 7:G('cap','122628',[mk(CLx,yT,9,0,-1,0),mk(CRx,yT,9,0,-1,0)]);break;
-      case 8:G('screw','118331',[mk(CLx,yT,6,0,-1,0),mk(CRx,yT,6,0,-1,0)]);break;
-      case 9:G('dowel','101345',[...topOf(CLx,3,-6,6),...topOf(CRx,3,-6,6)]);break;
-      case 11:G('cam','110630',[mk(CLx,0.1,-2,0,1,0),mk(CRx,0.1,-2,0,1,0)]);break;
-      case 12:G('screw','102138',[...runOf(rLx,6,-1),...runOf(rRx,6,1)]);break;
-      case 13:G('cap','122628',[mk(sLx,yT,-9,0,-1,0),mk(sLx,yT,9,0,-1,0),mk(sRx,yT,-9,0,-1,0),mk(sRx,yT,9,0,-1,0)]);break;
-      case 14:G('bolt','114671',[mk(sLx,yT,-9,0,-1,0),mk(sLx,yT,9,0,-1,0),mk(sRx,yT,-9,0,-1,0),mk(sRx,yT,9,0,-1,0)]);break;
-      case 15:G('screw','118331',[...topOf(sLx,4,-8,8),...topOf(sRx,4,-8,8)]);break;
-      case 17:G('cam','110630',[mk(sLx,yT,headZ+1,0,-1,0),mk(sRx,yT,headZ+1,0,-1,0),mk(sLx,yT,footZ-1,0,-1,0),mk(sRx,yT,footZ-1,0,-1,0)]);break;
-      case 18:G('cam','114670',[mk(sLx,yT,-3,0,-1,0),mk(sLx,yT,3,0,-1,0),mk(sRx,yT,-3,0,-1,0),mk(sRx,yT,3,0,-1,0)]);break;
-      case 19:G('dowel','101359',A(-6,6,4).map(x=>mk(x,yT,headZ,0,-1,0)));break;
-      case 20:G('screw','100365',[mk(sLx+0.3,3,-5,-1,0,0),mk(sLx+0.3,2,-5,-1,0,0)]);break;
-      case 22:G('allen','100049',[mk(sLx+0.4,3,headZ+1,-1,0,0)]);break;
-      case 23:G('screw','100365',[mk(sLx,2.4,headZ+2,0,0,-1)]);break;
-      case 25:G('allen','100049',[mk(sRx-0.4,3,headZ+1,1,0,0)]);break;
-      case 26:G('screw','100365',[mk(sRx-0.3,3,-6,1,0,0)]);break;
-      case 28:G('allen','100049',[mk(sLx+0.4,3,footZ-1,-1,0,0),mk(sRx-0.4,3,footZ-1,1,0,0)]);break;
-      case 29:G('cam','110630',[mk(sLx,0.1,-5,0,1,0),mk(sLx,0.1,5,0,1,0),mk(sRx,0.1,-5,0,1,0),mk(sRx,0.1,5,0,1,0)]);break;
-      case 30:G('screw','110789',[...topOf(CLx,8,-9,9),...topOf(CRx,8,-9,9)]);break;
-      case 31:G('screw','110789',[mk(CLx,3,-1,1,0,0),mk(CRx,3,-1,-1,0,0)]);break;
-      case 32:G('screw','117327',[...topOf(sLx,4,-8,8),...topOf(sRx,4,-8,8)]);break;
-      case 33:G('screw','117327',[mk(CLx,yT,-6,0,-1,0),mk(CRx,yT,-6,0,-1,0),mk(CLx,yT,6,0,-1,0),mk(CRx,yT,6,0,-1,0)]);break;
-      case 36:G('cube','191315',[...A(-7,7,4).map(z=>mk(sLx,H+0.3,z,0,-1,0)),...A(-7,7,4).map(z=>mk(sRx,H+0.3,z,0,-1,0))]);break;
-      case 38:G('dowel','101345',[mk(-3,1.2,3.3,0,0,1),mk(-3,2.4,3.3,0,0,1),mk(3,1.2,3.3,0,0,1),mk(3,2.4,3.3,0,0,1)]);break;
-      case 39:G('screw','118331',[mk(-3,1.2,3.3,0,0,1),mk(-3,2.4,3.3,0,0,1),mk(3,1.2,3.3,0,0,1),mk(3,2.4,3.3,0,0,1)]);break;
-      case 41:G('cam','119030',[mk(-3,2.7,-3,0,-1,0),mk(-3,2.7,3,0,-1,0),mk(3,2.7,-3,0,-1,0),mk(3,2.7,3,0,-1,0)]);break;
-      case 44:G('screw','110519',[mk(-2,0,-2,0,1,0),mk(-2,0,2,0,1,0),mk(2,0,-2,0,1,0),mk(2,0,2,0,1,0)]);break;
-      case 45:G('screw','100365',[...A(-2,2,3).map(z=>mk(-3.3,0.6,z,-1,0,0)),...A(-2,2,3).map(z=>mk(3.3,0.6,z,1,0,0))]);break;
-      case 46:G('screw','100359',[mk(-2.4,3.15,0,0,-1,0),mk(2.4,3.15,0,0,-1,0)]);break;
-      case 47:G('screw','109567',[mk(-1.5,1.7,3.4,0,0,1),mk(1.5,1.7,3.4,0,0,1)]);break;
+      // faces, not top edges: a cam perched on a 0.5-thick edge overhangs it on both sides
+      case 1:G('cam','110630',[mk(CLx-t/2,2.6,headZ+1.4,1,0,0),mk(CLx-t/2,1.4,headZ+1.4,1,0,0)]);G('bolt','110115',[mk(CLx,1.4,-10,0,0,1),mk(CLx,2.6,-10,0,0,1)]);break;
+      case 2:G('screw','100365',[...runOf(rCRx+0.18,3,-1,-8.7,8.7),...runOf(rCLx-0.18,3,1,-8.7,8.7)]);break;
+      case 3:G('screw','100365',[...runOf(rCRx-0.18,3,1,-8.7,8.7),...runOf(rCLx+0.18,3,-1,-8.7,8.7)]);break;
+      case 4:G('dowel','101350',[mk(CRx,1.2,-10,0,0,1),mk(CRx,2.8,-10,0,0,1),mk(CRx,1.2,10,0,0,-1),mk(CRx,2.8,10,0,0,-1),
+        mk(CLx,1.2,-10,0,0,1),mk(CLx,2.8,-10,0,0,1),mk(CLx,1.2,10,0,0,-1),mk(CLx,2.8,10,0,0,-1)]);break;
+      case 5:G('bolt','110115',[mk(CRx,2,-9.4,0,0,1),mk(CLx,2,-9.4,0,0,1)]);break;
+      case 6:G('cam','110630',[mk(CRx+t/2,2,headZ+1.2,-1,0,0),mk(CLx-t/2,2,headZ+1.2,1,0,0)]);break;
+      // steps 7-9 are done on the two battens lying loose on the floor
+      case 7:G('cap','122628',[mk(2.4,0.6,0.9,0,-1,0),mk(-2.4,0.6,0.9,0,-1,0)]);break;
+      case 8:G('longscrew','118331',[mk(2.4,0.6,-0.9,0,-1,0),mk(-2.4,0.6,-0.9,0,-1,0)]);break;
+      case 9:G('dowel','101345',[mk(2.4,0.6,0,0,-1,0),mk(-2.4,0.6,0,0,-1,0),
+        mk(2.4,0.3,-10,0,0,1),mk(-2.4,0.3,-10,0,0,1),mk(2.4,0.3,10,0,0,-1),mk(-2.4,0.3,10,0,0,-1)]);break;
+      case 10:G('dowel','101345',[mk(2.4,0.6,-6,0,-1,0),mk(2.4,0.6,6,0,-1,0),mk(-2.4,0.6,-6,0,-1,0),mk(-2.4,0.6,6,0,-1,0)]);break;
+      case 11:G('cam','110630',[mk(CRx+t/2,1.0,6,-1,0,0),mk(CLx-t/2,1.0,-6,1,0,0)]);break;
+      case 12:G('screw','102138',[...runOf(rRx,6,1,-8.5,8.5),...runOf(rLx,6,-1,-8.5,8.5)]);
+        G('ring','110646',[...runOf(W/2-t,6,1,-8.5,8.5),...runOf(-W/2+t,6,-1,-8.5,8.5)]);break;
+      // caps go in the bottom edge, bolts in the inner face near the top — different holes
+      case 13:G('cap','122628',[mk(sRx,0.1,-9,0,1,0),mk(sRx,0.1,9,0,1,0),mk(sLx,0.1,-9,0,1,0),mk(sLx,0.1,9,0,1,0)]);break;
+      case 14:G('bolt','114671',[mk(sRx-t/2,3.3,-9.8,1,0,0),mk(sRx-t/2,3.3,9.8,1,0,0),mk(sLx+t/2,3.3,-9.8,-1,0,0),mk(sLx+t/2,3.3,9.8,-1,0,0)]);break;
+      case 15:G('longscrew','118331',[mk(sRx-t/2,0.35,-9,1,0,0),mk(sRx-t/2,2.0,-0.4,1,0,0),mk(sRx-t/2,0.9,0,1,0,0),mk(sRx-t/2,0.35,8.6,1,0,0),
+        mk(sLx+t/2,0.35,-9,-1,0,0),mk(sLx+t/2,2.0,-0.4,-1,0,0),mk(sLx+t/2,0.9,0,-1,0,0),mk(sLx+t/2,0.35,8.6,-1,0,0)]);break;
+      case 17:G('cam','110630',[mk(CRx,yT,headZ+0.9,0,-1,0),mk(CLx,yT,headZ+0.9,0,-1,0),mk(6.5,yT,headZ+0.9,0,-1,0),mk(-6.5,yT,headZ+0.9,0,-1,0)]);break;
+      // pressed into the rail faces at the ends — the same cams steps 22/25/28 later turn
+      case 18:G('bigcam','114670',[mk(sRx-t/2,H*0.55,headZ+1.1,1,0,0),mk(sRx-t/2,H*0.55,footZ-1.1,1,0,0),mk(sLx+t/2,H*0.55,headZ+1.1,-1,0,0),mk(sLx+t/2,H*0.55,footZ-1.1,-1,0,0)],true);break;
+      case 19:G('dowel','101359',[mk(sRx,1.4,-10,0,0,1),mk(sRx,2.6,-10,0,0,1),mk(sRx,1.4,10,0,0,-1),mk(sRx,2.6,10,0,0,-1),
+        mk(sLx,1.4,-10,0,0,1),mk(sLx,2.6,-10,0,0,1),mk(sLx,1.4,10,0,0,-1),mk(sLx,2.6,10,0,0,-1)]);break;
+      case 20:G('screw','100365',[mk(sRx-t/2,2.6,-0.6,1,0,0),mk(sRx-t/2,2.6,0.6,1,0,0),mk(sLx+t/2,2.6,-0.6,-1,0,0),mk(sLx+t/2,2.6,0.6,-1,0,0)]);break;
+      case 22:G('allen','100049',[mk(sLx+t/2,H*0.55,headZ+1.1,-1,0,0)]);break;
+      case 23:G('screw','100365',[mk(sLx+t/2,2.2,-0.35,-1,0,0),mk(sLx+t/2,2.2,0.35,-1,0,0)]);break;
+      case 25:G('allen','100049',[mk(sRx-t/2,H*0.55,headZ+1.1,1,0,0)]);break;
+      case 26:G('screw','100365',[mk(sRx-t/2,2.2,-0.35,1,0,0),mk(sRx-t/2,2.2,0.35,1,0,0)]);break;
+      case 28:G('allen','100049',[mk(sRx-t/2,H*0.55,footZ-1.1,1,0,0),mk(sLx+t/2,H*0.55,footZ-1.1,-1,0,0)]);break;
+      // the bed is not flipped here: the cams drop DOWN into the bottom rails at the corners
+      case 29:G('cam','110630',[mk(sRx-0.3,0.9,headZ+1.2,0,-1,0),mk(sRx-0.3,0.9,footZ-1.2,0,-1,0),mk(sLx+0.3,0.9,headZ+1.2,0,-1,0),mk(sLx+0.3,0.9,footZ-1.2,0,-1,0)]);break;
+      // horizontally through the slotted ledges on all four inner faces, below the top edge
+      case 30:{const rY=H-0.5,rz=A(-8,8,4);
+        G('screw','110789',[...rz.map(z=>mk(sRx-t/2,rY,z,1,0,0)),...rz.map(z=>mk(sLx+t/2,rY,z,-1,0,0)),
+          ...rz.map(z=>mk(CRx+t/2,rY,z,-1,0,0)),...rz.map(z=>mk(CLx-t/2,rY,z,1,0,0))]);break;}
+      case 31:G('screw','110789',[mk(-0.7,3.2,-L/2+t+0.4,0,0,-1),mk(0.7,3.2,-L/2+t+0.4,0,0,-1),mk(-0.7,3.2,L/2-t-0.4,0,0,1),mk(0.7,3.2,L/2-t-0.4,0,0,1)]);break;
+      case 32:G('screw','117327',[mk(-0.8,H,-L/2+t+0.4,0,-1,0),mk(0.8,H,-L/2+t+0.4,0,-1,0),mk(-0.8,H,L/2-t-0.4,0,-1,0),mk(0.8,H,L/2-t-0.4,0,-1,0),
+        mk(sRx-t-0.35,H-0.2,-3.5,0,-1,0),mk(sLx+t+0.35,H-0.2,-3.5,0,-1,0),mk(sRx-t-0.35,H-0.2,3.5,0,-1,0),mk(sLx+t+0.35,H-0.2,3.5,0,-1,0)]);break;
+      case 33:G('screw','117327',[mk(3.6,H-0.2,-6.5,0,-1,0),mk(-3.6,H-0.2,-6.5,0,-1,0),mk(3.6,H-0.2,6.5,0,-1,0),mk(-3.6,H-0.2,6.5,0,-1,0)]);break;
+      case 34:G('cube','116791',[mk(0,H-0.35,-L/2+t+0.5,0,-1,0)]);break;
+      case 35:G('cube','116791',[mk(0,H-0.35,L/2-t-0.5,0,0,1)]);break;
+      // sleeve nut drops in from above; its screw comes UP from underneath into it
+      case 36:{const nx=[6.9,0.6,-0.6,-6.9],nz=[headZ,footZ];
+        G('sleeve','191315',nz.flatMap(z=>nx.map(x=>mk(x,yT,z,0,-1,0))));
+        G('screw','105163',nz.flatMap(z=>nx.map(x=>mk(x,yT-1.0,z,0,1,0))));break;}
+      case 37:G('cap','191315',[...A(-7,7,4).map(z=>mk(sRx-0.35,slatY,z,0,-1,0)),...A(-7,7,4).map(z=>mk(sLx+0.35,slatY,z,0,-1,0))]);break;
+      // drawer sides span x -3.2..-2.8 / 2.8..3.2, z -3.5..3.5; back at z -3.7..-3.3.
+      // Right-hand marks come first so the close-up camera is not looking through the far side.
+      case 38:G('dowel','101345',[mk(3,0.8,-3.5,0,0,1),mk(3,2.6,-3.5,0,0,1),mk(-3,0.8,-3.5,0,0,1),mk(-3,2.6,-3.5,0,0,1)]);break;
+      case 39:G('longscrew','118331',[mk(3,1.5,-3.3,0,0,-1),mk(3,2.2,-3.3,0,0,-1),mk(-3,1.5,-3.3,0,0,-1),mk(-3,2.2,-3.3,0,0,-1)]);break;
+      case 41:G('drawercam','119030',[mk(3.2,1.5,-3.3,-1,0,0),mk(3.2,2.2,-3.3,-1,0,0),mk(-3.2,1.5,-3.3,1,0,0),mk(-3.2,2.2,-3.3,1,0,0)]);break;
+      case 44:G('screw','110519',[mk(3.2,1.2,3.15,-1,0,0),mk(3.2,2.4,3.15,-1,0,0),mk(-3.2,1.2,3.15,1,0,0),mk(-3.2,2.4,3.15,1,0,0)]);break;
+      case 45:G('screw','100365',[...A(-2,2,3).map(z=>mk(3.4,0.4,z,-1,0,0)),...A(-2,2,3).map(z=>mk(-3.4,0.4,z,1,0,0))]);break;
+      case 46:G('screw','100359',[mk(0,0.55,-3.0,0,-1,0),mk(0,0.55,3.0,0,-1,0)]);break;
+      case 47:G('screw','109567',[mk(1.5,2.6,3.5,0,0,1),mk(-1.5,2.6,3.5,0,0,1)]);break;
     }
     return g;
   }
   function vis(n){
     const s=new Set();if(n===0)return s;
-    if(n>=38&&n<=47){['dBase','dLeft','dRight','dBack','dRunL','dRunR'].forEach(k=>s.add(k));if(n>=46)s.add('dRail');if(n>=47){s.add('dFront');s.add('dHandle');}return s;}
+    // the drawer is built one part at a time, so steps 40/42/43 have something to show
+    if(n>=38&&n<=47){
+      s.add('dLeft');s.add('dRight');
+      if(n>=39)s.add('dBack');
+      if(n>=42)s.add('dBase');
+      if(n>=43)s.add('dInner');
+      if(n>=45){s.add('dRunL');s.add('dRunR');}
+      if(n>=46)s.add('dRail');
+      if(n>=47)s.add('dHandle');
+      return s;
+    }
     s.add('CL');s.add('CR');
     if(n>=2)s.add('runnerCL');if(n>=3)s.add('runnerCR');
-    if(n>=12){s.add('sideL');s.add('sideR');s.add('runL');s.add('runR');}
-    if(n>=17){s.add('endHead');s.add('endFoot');}
-    if(n>=20)s.add('brk1');if(n>=31)s.add('brk2');
+    if(n>=7){s.add('battenL');s.add('battenR');}
+    if(n>=12){s.add('runL');s.add('runR');}
+    if(n>=16){s.add('sideL');s.add('sideR');}
+    if(n>=17)s.add('endHead');
+    if(n>=27)s.add('endFoot');           // manual step 27 — the second end panel goes on here
+    if(n>=20)s.add('brk1');if(n>=31){s.add('brk2');s.add('brk3');}
     if(n>=32){s.add('railBack');s.add('railFront');}
-    if(n>=34)s.add('beam');
+    if(n>=34)s.add('beamA');
+    if(n>=35)s.add('beamB');
     if(n>=37){s.add('slatsA');s.add('slatsB');}
-    if(n===48){['fd1','fd2','fd3','fd4'].forEach(k=>s.add(k));}
+    if(n>=48){['fd1','fd2','fd3','fd4'].forEach(k=>s.add(k));}
     return s;
   }
+  // [name, part no., qty, fitting kind, bag] — bag 1 opens at step 1, bag 2 at step 30, bag 3 at step 37
   const trayItems=[
-    ['Dowel (short)','101345','×22','dowel'],['Dowel (medium)','101350','×8','dowel'],['Dowel (long)','101359','×4','dowel'],
-    ['Cam lock nut','110630','×14','cam'],['Cam fitting','114670','×4','cam'],['Spacer washer','110646','×12','ring'],
-    ['Plastic cap','122628','×6','cap'],['Adjusting bolt','114671','×4','bolt'],['Sleeve nut','191315','×8','cube'],
-    ['Screw (small)','100365','×44','screw'],['Screw','102138','×12','screw'],['Screw (support)','110789','×20','screw'],
-    ['Screw (drawer)','110519','×16','screw'],['Machine screw','117327','×12','screw'],['Double dowel screw','118331','×26','screw'],
-    ['Barrel connector','110115','×2','bolt'],['Allen key','100049','×1','allen'],['Drawer runner','139505','×4','rail'],
-    ['Metal bracket','121370','×2','cube'],['Corner bracket','116791','×2','cube']
+    ['Dowel (short)','101345','×22','dowel','1+3'],['Dowel (medium)','101350','×8','dowel','1'],['Dowel (long)','101359','×8','dowel','1'],
+    ['Cam lock nut','110630','×14','cam','1'],['Cam fitting','114670','×4','bigcam','1'],['Spacer washer','110646','×12','ring','1'],
+    ['Plastic cap','122628','×6','cap','1'],['Adjusting bolt','114671','×4','bolt','1'],['Barrel connector','110115','×2','bolt','1'],
+    ['Allen key','100049','×1','allen','1'],['Screw (small)','100365','×44','screw','1+3'],['Screw (long)','102138','×12','screw','1'],
+    ['Double dowel screw','118331','×26','longscrew','1+3'],
+    ['Screw (support)','110789','×20','screw','2'],['Screw (slat mount)','105163','×8','screw','2'],
+    ['Machine screw','117327','×12','screw','2'],['Sleeve nut','191315','×8','sleeve','2'],
+    ['Screw (drawer base)','110519','×16','screw','3'],['Cam lock (drawer)','119030 / 118224','×16','drawercam','3'],
+    ['Screw (drawer front)','109567','×8','screw','3'],['Screw (drawer rail)','100359','×8','screw','3'],
+    ['Metal bracket','121370','×2','cube',''],['Centre bracket','116791','×2','cube',''],
+    ['Drawer runner (set)','139505','×4','rail',''],['Diagonal brace','117228','×4','rail',''],
+    ['Drawer rail','118301','×4','rail',''],['Handle','124328','×4','panel','']
   ];
-  const trayLabels=[];
-  trayItems.forEach((it,i)=>{const col=i%5,row=Math.floor(i/5);const x=(col-2)*3.4,z=(row-1.5)*3.4;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x,-0.2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+'</code>'});});
-  const cheers={1:{m:"Great start — let's build this!",p:'wave'},12:{m:"Sides going on. Nice work!",p:'happy'},16:{m:"The frame's coming together!",p:'thumbsUp'},30:{m:"Rock-solid support. Keep going!",p:'happy'},37:{m:"Slats in — almost a bed!",p:'thumbsUp'}};
-  return {name:'BRIMNES bed frame',count:48,P,steps:S,fx,vis,trayLabels,trayY:0.6,cheers,finish:"You did it! The BRIMNES bed is finished. 🎉"};
+  const trayLabels=[],TC=5,TR=Math.ceil(trayItems.length/TC);
+  trayItems.forEach((it,i)=>{const col=i%TC,row=Math.floor(i/TC);const x=(col-(TC-1)/2)*3.4,z=(row-(TR-1)/2)*3.4;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x,-0.2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+(it[4]?' · bag '+it[4]:'')+'</code>'});});
+  const cheers={1:{m:"Great start — let's build this!",p:'wave'},12:{m:"Sides going on. Nice work!",p:'happy'},16:{m:"The frame's coming together!",p:'thumbsUp'},30:{m:"Rock-solid support. Keep going!",p:'happy'},37:{m:"Slats in — almost a bed!",p:'thumbsUp'},38:{m:"One drawer at a time — you'll build 4.",p:'wave'}};
+  // direction a part arrives from, where the manual shows something other than a drop
+  const entry={5:[0,0,1],16:[1,0,0],27:[0,0,1],43:[0,0,1],47:[0,0,1],48:[1,0,0]};
+  // steps that re-seat a part that is already on screen
+  const reposition={10:['CL','CR','runnerCL','runnerCR'],21:['sideL'],24:['sideR'],40:['dLeft','dRight']};
+  // step 48 returns to the frame after ten drawer steps; without this the whole bed counts as new
+  const rejoin={48:37};
+  const slow={37:1.5};
+  const unrollZ0=-L/2+2.5,unrollLen=L-5;
+  function motion(n,u){
+    const bB=P.beamB&&P.beamB.obj;
+    if(bB)bB.position.z=P.beamB.pos.z-(n===35?(1-u):(n<35?1:0))*(bHalf-1.2);
+    const t2=(n===37)?u:(n>37?1:0);
+    [P.slatsA,P.slatsB].forEach(g=>{if(!g)return;const kids=g.obj.children;kids.forEach((s,i)=>{
+      if(s.userData.z0===undefined)s.userData.z0=s.position.z;
+      const k=Math.min(1,Math.max(0,t2*1.7-(i/kids.length)*0.7));
+      const a=(1-k)*2.2;
+      s.position.z=unrollZ0+(s.userData.z0-unrollZ0)*k;
+      s.position.y=(1-k)*1.0*Math.sin(k*Math.PI)+(1-k)*0.9;
+      s.rotation.x=-a;
+    });});
+  }
+  return {name:'BRIMNES bed frame',count:48,P,steps:S,fx,vis,entry,reposition,rejoin,slow,motion,trayLabels,trayY:0.6,trayHalf:15,cheers,finish:"You did it! The BRIMNES bed is finished. 🎉"};
 }
 
 // ================= MODEL: LACK coffee table =================
@@ -374,6 +492,7 @@ const camI=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);
 let camCenter=V(0,2,0),camTarget=V(0,2,0),iCenter=V(0,2,0),iTarget=V(0,2,0);
 let halfView=13,halfTarget=13,iHalf=3,iHalfTarget=3,userZoom=1,baseHalf=13;
 let panX=0,panY=0,panXTarget=0,panYTarget=0;   // shift main view when a detail is shown
+const ANCHOR_X=-0.35,ANCHOR_Y=-0.05;           // NDC resting place for the highlighted marker
 let iTheta=0.9,iPhi=0.95;                       // fixed inset angle (independent of user spin)
 function orbit(cam,center,half,aspect,th,ph,pX,pY){
   const R=80;
@@ -382,18 +501,20 @@ function orbit(cam,center,half,aspect,th,ph,pX,pY){
   const dx=(pX||0)*half*aspect,dy=(pY||0)*half;
   cam.left=-half*aspect+dx;cam.right=half*aspect+dx;cam.top=half+dy;cam.bottom=-half+dy;cam.updateProjectionMatrix();
 }
-// pick a stable, readable inset angle from the fastener's insertion axis
+// Put the close-up camera on the side the fastener comes FROM (along -dir), otherwise
+// the inset looks through the workpiece at a fastener hidden behind it.
 function insetAngles(d){
   const ax=Math.abs(d.x),ay=Math.abs(d.y),az=Math.abs(d.z);
-  if(ay>=ax&&ay>=az)return{th:0.9,ph:0.95};   // driven vertically -> elevated 3/4 looking down
-  if(az>=ax)return{th:0.32,ph:0.95};          // driven along Z -> view broadside from the X side
-  return{th:1.28,ph:0.95};                     // driven along X -> view broadside from the Z side
+  if(ay>=ax&&ay>=az)return{th:0.9,ph:d.y<0?0.95:2.19};  // driven up -> look up from below
+  if(az>=ax)return{th:d.z<0?0.32:-0.32,ph:0.95};
+  return{th:d.x<0?1.28:Math.PI-1.28,ph:0.95};
 }
 function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);const s=insetC.clientWidth;insetR.setSize(s,s,false);}
 addEventListener('resize',resize);
 
 // ---------- markers ----------
 let markers=[],arrows=[];
+const FULL_MARKS=4;   // the manual draws one close-up labelled "16x", not sixteen fasteners
 function buildFits(n){
   while(fitGroup.children.length)fitGroup.remove(fitGroup.children[0]);
   markers=[];arrows=[];
@@ -402,9 +523,15 @@ function buildFits(n){
     const p=V(m.pos[0],m.pos[1],m.pos[2]);
     const nd=V(m.dir[0],m.dir[1],m.dir[2]).normalize();
     const out=nd.clone().multiplyScalar(-1);
-    const fit=makeFit(gr.kind);fit.quaternion.setFromUnitVectors(UP,out);fit.userData={p,out,ph:i*0.5};fitGroup.add(fit);markers.push(fit);
-    const ring=new THREE.Mesh(new THREE.RingGeometry(0.32,0.52,20),hlMat);ring.quaternion.setFromUnitVectors(ZAX,nd);ring.position.copy(p);fitGroup.add(ring);
-    const cone=new THREE.Mesh(new THREE.CylinderGeometry(0,0.17,0.52,14),hlMat);cone.quaternion.setFromUnitVectors(UP,nd);cone.userData={p,out};fitGroup.add(cone);arrows.push(cone);
+    const hole=new THREE.Mesh(new THREE.CircleGeometry(HOLE_R[gr.kind]||0.15,16),holeMat);
+    hole.quaternion.setFromUnitVectors(ZAX,out);hole.position.copy(p).addScaledVector(out,0.012);hole.renderOrder=1;fitGroup.add(hole);
+    if(i>=FULL_MARKS){i++;return;}   // beyond this, the hole alone marks the position
+    const fit=makeFit(gr.kind);const q0=new THREE.Quaternion().setFromUnitVectors(UP,out);
+    fit.quaternion.copy(q0);fit.userData={p,out,ph:i*0.5,kind:gr.kind,press:!!gr.press,q0};fitGroup.add(fit);markers.push(fit);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(0.32,0.52,20),hlMat);ring.quaternion.setFromUnitVectors(ZAX,nd);
+    ring.position.copy(p).addScaledVector(out,0.006);ring.renderOrder=2;fitGroup.add(ring);
+    const cone=new THREE.Mesh(new THREE.CylinderGeometry(0,0.17,0.52,14),hlMat);cone.quaternion.setFromUnitVectors(UP,nd);
+    cone.userData={p,out,base:(FIT_LEN[gr.kind]||1.2)+0.5};fitGroup.add(cone);arrows.push(cone);
     i++;
   }));
   return groups;
@@ -422,7 +549,13 @@ function focusFor(n,before){
   if(!pts.length)pts=[V(0,2,0)];
   const c=V(0,0,0);pts.forEach(p=>c.add(p));c.multiplyScalar(1/pts.length);
   let r=0;pts.forEach(p=>r=Math.max(r,p.distanceTo(c)));r=Math.max(r,1);
-  return{center:c,radius:r,primary:primary||c};
+  // extent of everything on screen, so framing can be expressed relative to the
+  // assembly instead of the fixed 5/19 clamps (which crop or shrink at the extremes)
+  const wp=[];[...MODEL.vis(n)].forEach(k=>{const o=P[k];if(!o)return;const[sx,sy,sz]=o.size;
+    wp.push(o.pos.clone(),o.pos.clone().add(V(sx/2,sy/2,sz/2)),o.pos.clone().add(V(-sx/2,-sy/2,-sz/2)));});
+  const wc=V(0,0,0);wp.forEach(p=>wc.add(p));if(wp.length)wc.multiplyScalar(1/wp.length);
+  let wr=1;wp.forEach(p=>wr=Math.max(wr,p.distanceTo(wc)));
+  return{center:c,radius:r,primary:primary||c,whole:wr};
 }
 
 // ---------- leaders / labels ----------
@@ -453,8 +586,19 @@ function positionTrayLabels(){
 
 // ---------- animation ----------
 const clock=new THREE.Clock();
-let stepT0=0,newParts=[];
+let stepT0=0,newParts=[],stepDur=0.7;
+const _qs=new THREE.Quaternion();
 function ease(u){return u<0?0:u>1?1:u*u*(3-2*u);}
+// Direction a newly-visible part travels in from. The manual shows horizontal slides
+// and pushes as often as drops; a blanket +Y drop misreads those steps.
+function entryOffset(n,it){
+  const e=MODEL.entry&&MODEL.entry[n];
+  if(!e)return V(0,6,0);
+  const v=V(e[0],e[1],e[2]);
+  const along=e[0]?it.pos.x:e[2]?it.pos.z:0;
+  if(along<0)v.negate();          // parts left of centre come in from the left
+  return v.multiplyScalar(6);
+}
 function loop(){
   const tt=clock.getElapsedTime();
   if(spinOn&&!dragging&&!REDUCED)theta+=0.0016;
@@ -462,13 +606,28 @@ function loop(){
   camCenter.lerp(camTarget,0.12);iCenter.lerp(iTarget,0.14);
   halfView+=(halfTarget-halfView)*0.12;iHalf+=(iHalfTarget-iHalf)*0.14;
   resize();
-  const prog=ease((tt-stepT0)/0.7);
-  newParts.forEach(k=>{const it=P[k];if(!it)return;it.obj.position.set(it.pos.x,it.pos.y+6*(1-prog),it.pos.z);});
-  markers.forEach(m=>{const{p,out,ph}=m.userData;const bob=REDUCED?0:Math.max(0,Math.sin(tt*2+ph)*0.06);m.position.copy(p).addScaledVector(out,0.72+(1-prog)*1.6+bob);});
-  arrows.forEach(a=>{const{p,out}=a.userData;const bob=REDUCED?0:(Math.sin(tt*2.4)*0.5+0.5)*0.35;a.position.copy(p).addScaledVector(out,1.55+bob);a.visible=prog>0.15;});
+  const prog=ease((tt-stepT0)/stepDur);
+  newParts.forEach(k=>{const it=P[k];if(!it)return;it.obj.position.copy(it.pos).addScaledVector(entryOffset(idx,it),1-prog);});
+  if(MODEL.motion)MODEL.motion(idx,prog);
+  markers.forEach(m=>{
+    const{p,out,ph,kind,press,q0}=m.userData;
+    const bob=REDUCED?0:Math.max(0,Math.sin(tt*2+ph)*0.06);
+    m.position.copy(p).addScaledVector(out,0.72+(1-prog)*1.6+bob);
+    let a=0;
+    if(!press&&SPIN[kind])a=REDUCED?prog*Math.PI*2:tt*4.2+ph;
+    else if(!press&&LOCK[kind])a=ease((prog-0.55)/0.45)*Math.PI/2;
+    m.quaternion.copy(q0);
+    if(a)m.quaternion.multiply(_qs.setFromAxisAngle(UP,a));
+  });
+  arrows.forEach(a=>{const{p,out,base}=a.userData;const bob=REDUCED?0:(Math.sin(tt*2.4)*0.5+0.5)*0.3;a.position.copy(p).addScaledVector(out,base+bob);a.visible=prog>0.15;});
   positionTrayLabels();
   const show=calloutOn&&idx!==0&&primaryMarker;
-  panXTarget=show?0.3:0;panYTarget=show?0.18:0;
+  // servo the pan so the target lands on a fixed anchor left of centre; a constant
+  // offset lets the marker drift under the opaque inset once the user rotates
+  if(show){const v=primaryMarker.clone().project(camera);
+    panXTarget=Math.max(-0.9,Math.min(0.9,panX+(v.x-ANCHOR_X)));
+    panYTarget=Math.max(-0.9,Math.min(0.9,panY+(v.y-ANCHOR_Y)));}
+  else{panXTarget=0;panYTarget=0;}
   panX+=(panXTarget-panX)*0.12;panY+=(panYTarget-panY)*0.12;
   const w=canvas.clientWidth,h=canvas.clientHeight;
   orbit(camera,camCenter,halfView,w/h,theta,phi,panX,panY);renderer.render(scene,camera);
@@ -516,19 +675,27 @@ function go(i){
   stepnoEl.innerHTML=idx===0?'Parts':(fin?'&#10003;':(idx+'<small>/ '+MODEL.realCount+'</small>'));
   nameEl.textContent=(idx===0||fin)?step.name:(idx+'. '+step.name);
   txtEl.textContent=step.txt;
-  const before=MODEL.vis(idx-1<0?0:idx-1);
+  // the drawer sub-assembly (38-47) shares no keys with the frame, so stepping back to
+  // the bed must not count the whole frame as "new" and drop it from the sky
+  const prevIdx=idx-1<0?0:idx-1;
+  const before=(MODEL.rejoin&&MODEL.rejoin[idx]!==undefined)?MODEL.vis(MODEL.rejoin[idx]):MODEL.vis(prevIdx);
   setVis(idx);tray.visible=(idx===0);
-  newParts=[...MODEL.vis(idx)].filter(k=>!before.has(k));stepT0=clock.getElapsedTime();
+  for(const k in P)P[k].obj.position.copy(P[k].pos);   // clear any interrupted entry animation
+  newParts=[...MODEL.vis(idx)].filter(k=>!before.has(k)).concat((MODEL.reposition&&MODEL.reposition[idx])||[]);
+  stepDur=(MODEL.slow&&MODEL.slow[idx])||0.7;
+  stepT0=clock.getElapsedTime();
   const groups=buildFits(idx);buildLegend(step);
-  if(idx===0){camTarget.set(0,MODEL.trayY,0);baseHalf=12.5;primaryMarker=null;cntEl.textContent='';}
+  if(idx===0){camTarget.set(0,MODEL.trayY,0);baseHalf=MODEL.trayHalf||12.5;primaryMarker=null;cntEl.textContent='';}
   else{
     const f=focusFor(idx,before);camTarget.copy(f.center);
-    baseHalf=Math.min(19,Math.max(5,f.radius*1.85+2.6));
+    baseHalf=Math.min(f.whole*1.05,Math.max(f.whole*0.45,f.radius*1.5+2.2));
     const nm=groups.flatMap(g=>g.marks);
     if(nm.length){
       primaryMarker=V(nm[0].pos[0],nm[0].pos[1],nm[0].pos[2]);iTarget.copy(primaryMarker);
       const d0=V(nm[0].dir[0],nm[0].dir[1],nm[0].dir[2]).normalize();const ia=insetAngles(d0);iTheta=ia.th;iPhi=ia.ph;
-      iHalfTarget=Math.min(4.5,Math.max(1.8,f.radius*0.28+2.0));
+      // scale the close-up to the fastener, not to the spread of all the markers,
+      // otherwise a multi-screw step zooms the "detail" view out to the main view's scale
+      iHalfTarget=(HOLE_R[groups[0].kind]||0.2)*2.6+0.5;
       const first=groups[0];const cap=(step.it||[]).find(x=>x.part&&x.part===first.part)||(step.it||[]).find(x=>x.kind===first.kind);
       const q=cap?cap.qty:first.marks.length;cntEl.textContent=(q>1?q+'× ':'')+first.part;
     }else{primaryMarker=null;cntEl.textContent='';}
