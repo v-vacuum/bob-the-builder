@@ -3,7 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IKEA — 3D assembly</title>
+<title>Assembly guide — 3D instructions</title>
+<meta name="description" content="Step-by-step 3D assembly instructions. Rotate any step, zoom into any screw.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#f7f6f3">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Assembly guide — 3D instructions">
+<meta property="og:description" content="Rotate any step. Zoom into any screw.">
+<meta property="og:image" content="https://bob-builds.vercel.app/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Line drawing of a figure puzzling over a manual next to two boards.">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -50,7 +62,9 @@
   #detailtag b{position:absolute;top:var(--s2);left:50%;transform:translateX(-50%);font-size:10px;font-weight:800;letter-spacing:1px;color:var(--muted);background:#fff;border:1px solid rgba(20,20,20,.25);border-radius:20px;padding:1px 9px}
   #detailtag .cnt{position:absolute;bottom:var(--s2);left:50%;transform:translateX(-50%);font-size:15px;font-weight:800;color:var(--ink);background:rgba(255,255,255,.9);border-radius:8px;padding:0 8px;white-space:nowrap}
   #leads{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:visible}
-  #legend{flex:none;position:relative;z-index:5;display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--pad) 0;overflow-y:auto;overscroll-behavior:contain}
+  /* align-*:start keeps a lone chip its own height — the reserved row height would
+     otherwise stretch it into a tall empty box */
+  #legend{flex:none;position:relative;z-index:5;display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;gap:var(--s2);padding:var(--s3) var(--pad) 0;overflow-y:auto;overscroll-behavior:contain}
   .chip{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;background:#fff;border:1px solid rgba(20,20,20,.5);border-radius:7px;padding:2px 9px;line-height:1.5;width:max-content;max-width:min(260px,60vw)}
   .chip .q{font-weight:800}
   .chip code{font-family:inherit;color:var(--muted);font-weight:600}
@@ -93,6 +107,9 @@
   @media (max-width:640px){
     #stage{height:clamp(320px,52vh,520px)}
     .topbar .title{display:none}
+    /* a phone has the width for the whole part name and code on one line, and wrapping
+       one chip but not the next makes the list look ragged */
+    .chip{max-width:100%}
     .bar .track{order:-1;flex:1 0 100%}
     .bar .steps{margin-left:auto}
   }
@@ -102,7 +119,7 @@
   body.nolabels #detailtag .cnt{display:none}
   .hint{position:absolute;left:var(--pad);bottom:var(--s3);z-index:7;font-size:11px;color:#b3b3ad;pointer-events:none}
   @media (max-width:640px){.hint{display:none}}
-  /* encouraging IKEA guy — slides in from the left edge, half cut off */
+  /* encouraging assembly buddy — slides in from the left edge, half cut off */
   #buddy{position:absolute;left:0;top:50%;z-index:8;width:clamp(130px,17vw,200px);pointer-events:none;transform:translate(-135%,-50%);transition:transform .55s cubic-bezier(.2,.8,.2,1)}
   #buddy.show{transform:translate(-18%,-50%)}
   #buddy.big{width:clamp(160px,22vw,250px)}
@@ -114,7 +131,14 @@
   #buddy.show .speech{opacity:1;transition:opacity .3s .25s}
   #buddy .speech::after{content:"";position:absolute;left:-16px;top:14px;border:8px solid transparent;border-right-color:var(--ink)}
   #buddy .speech::before{content:"";position:absolute;left:-11px;top:16px;border:6px solid transparent;border-right-color:#fff;z-index:1}
-  @media (max-width:640px){#buddy{width:clamp(92px,26vw,124px)}#buddy.big{width:clamp(112px,32vw,152px)}#buddy .speech{font-size:11px;padding:6px 9px}}
+  /* on a phone he stands on the bottom edge instead of across the middle of the model */
+  @media (max-width:640px){
+    #buddy{width:clamp(92px,26vw,124px);top:auto;bottom:2px;transform:translate(-135%,0)}
+    #buddy.show{transform:translate(-24%,0)}
+    #buddy.big{width:clamp(112px,32vw,152px)}
+    #buddy.big.show{transform:translate(-14%,0)}
+    #buddy .speech{font-size:11px;padding:6px 9px;max-width:min(160px,40vw)}
+  }
   @keyframes wiggle{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
   /* finish celebration */
   #confetti{position:absolute;inset:0;z-index:9;pointer-events:none;overflow:hidden}
@@ -348,6 +372,14 @@ function makeFit(kind){
   return box(0.6,0.6,0.6);
 }
 
+// Every part tag reads "Name <code>part ×qty · bag n</code>": one code chip holding all
+// the numbers, so the tags line up whichever model is loaded.
+function tagText(name,part,qty,bag){
+  let code=[part,qty&&'×'+qty].filter(Boolean).join(' ');
+  if(bag)code+=(code?' · ':'')+'bag '+bag;
+  return code?name+' <code>'+code+'</code>':name;
+}
+
 // ================= MODEL: BRIMNES =================
 function buildBrimnes(){
   const P={};
@@ -557,21 +589,21 @@ function buildBrimnes(){
   }
   // [name, part no., qty, fitting kind, bag] — bag 1 opens at step 1, bag 2 at step 30, bag 3 at step 37
   const trayItems=[
-    ['Dowel (short)','101345','×22','dowel','1+3'],['Dowel (medium)','101350','×8','dowel','1'],['Dowel (long)','101359','×8','dowel','1'],
-    ['Cam lock nut','110630','×14','cam','1'],['Cam fitting','114670','×4','bigcam','1'],['Spacer washer','110646','×12','ring','1'],
-    ['Plastic cap','122628','×6','cap','1'],['Adjusting bolt','114671','×4','bolt','1'],['Barrel connector','110115','×2','bolt','1'],
-    ['Allen key','100049','×1','allen','1'],['Screw (small)','100365','×44','screw','1+3'],['Screw (long)','102138','×12','screw','1'],
-    ['Double dowel screw','118331','×26','longscrew','1+3'],
-    ['Screw (support)','110789','×20','screw','2'],['Screw (slat mount)','105163','×8','screw','2'],
-    ['Machine screw','117327','×12','screw','2'],['Sleeve nut','191315','×8','sleeve','2'],
-    ['Screw (drawer base)','110519','×16','screw','3'],['Cam lock (drawer)','119030 / 118224','×16','drawercam','3'],
-    ['Screw (drawer front)','109567','×8','screw','3'],['Screw (drawer rail)','100359','×8','screw','3'],
-    ['Metal bracket','121370','×2','cube',''],['Centre bracket','116791','×2','cube',''],
-    ['Drawer runner (set)','139505','×4','rail',''],['Diagonal brace','117228','×4','rail',''],
-    ['Drawer rail','118301','×4','rail',''],['Handle','124328','×4','panel','']
+    ['Dowel (short)','101345',22,'dowel','1+3'],['Dowel (medium)','101350',8,'dowel','1'],['Dowel (long)','101359',8,'dowel','1'],
+    ['Cam lock nut','110630',14,'cam','1'],['Cam fitting','114670',4,'bigcam','1'],['Spacer washer','110646',12,'ring','1'],
+    ['Plastic cap','122628',6,'cap','1'],['Adjusting bolt','114671',4,'bolt','1'],['Barrel connector','110115',2,'bolt','1'],
+    ['Allen key','100049',1,'allen','1'],['Screw (small)','100365',44,'screw','1+3'],['Screw (long)','102138',12,'screw','1'],
+    ['Double dowel screw','118331',26,'longscrew','1+3'],
+    ['Screw (support)','110789',20,'screw','2'],['Screw (slat mount)','105163',8,'screw','2'],
+    ['Machine screw','117327',12,'screw','2'],['Sleeve nut','191315',8,'sleeve','2'],
+    ['Screw (drawer base)','110519',16,'screw','3'],['Cam lock (drawer)','119030 / 118224',16,'drawercam','3'],
+    ['Screw (drawer front)','109567',8,'screw','3'],['Screw (drawer rail)','100359',8,'screw','3'],
+    ['Metal bracket','121370',2,'cube',''],['Centre bracket','116791',2,'cube',''],
+    ['Drawer runner (set)','139505',4,'rail',''],['Diagonal brace','117228',4,'rail',''],
+    ['Drawer rail','118301',4,'rail',''],['Handle','124328',4,'panel','']
   ];
   const trayLabels=[],TC=5,TR=Math.ceil(trayItems.length/TC);
-  trayItems.forEach((it,i)=>{const col=i%TC,row=Math.floor(i/TC);const x=(col-(TC-1)/2)*5.8,z=(row-(TR-1)/2)*4.2;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x-0.4,2,z),text:it[0]+' <code>'+it[1]+' '+it[2]+(it[4]?' · bag '+it[4]:'')+'</code>'});});
+  trayItems.forEach((it,i)=>{const col=i%TC,row=Math.floor(i/TC);const x=(col-(TC-1)/2)*5.8,z=(row-(TR-1)/2)*4.2;const m=makeFit(it[3]);m.position.set(x,1,z);tray.add(m);trayLabels.push({anchor:V(x-0.4,2,z),text:tagText(it[0],it[1],it[2],it[4])});});
   const cheers={1:{m:"Great start — let's build this!",p:'wave'},12:{m:"Sides going on. Nice work!",p:'happy'},16:{m:"The frame's coming together!",p:'thumbsUp'},30:{m:"Rock-solid support. Keep going!",p:'happy'},37:{m:"Slats in — almost a bed!",p:'thumbsUp'},38:{m:"One drawer at a time — you'll build 4.",p:'wave'}};
   // direction a part arrives from, where the manual shows something other than a drop
   const entry={5:[0,0,1],16:[1,0,0],27:[0,0,1],43:[0,0,1],47:[0,0,1],48:[1,0,0]};
@@ -630,7 +662,7 @@ function buildLack(){
   LEGS.forEach(([sx,sz])=>reg('tmpl'+(sz>0?'F':'B')+(sx<0?'L':'R'),template120938(),[26*MM,TMPL_LEN,4*MM],[sx*legX,0,sz*faceZ],'Marking template 120938',{rotY:sz>0?Math.PI:0}));
 
   const S=[];
-  S[0]={name:'Parts, fittings & tools — actual size',txt:'Everything is drawn true to scale (1 grid square = 10 cm), so you can see how small the fittings really are. Scroll to zoom in and the labels open up as room allows. Tools: a screwdriver, a hammer and an awl. Work on a soft surface such as carpet so you do not scratch the table top.',it:[]};
+  S[0]={name:'Parts, fittings & tools — actual size',txt:'Everything is drawn true to scale (1 grid square = 10 cm), so you can see how small the fittings really are. Scroll to zoom in and the labels open up as room allows. Tools: a screwdriver, a hammer and an awl, plus marking template 120938 — it comes in the box but does not stay on the table. Work on a soft surface such as carpet so you do not scratch the table top.',it:[]};
   const st=(n,name,txt,it)=>{S[n]={name,txt,it};};
   const F=(k,c,p,nm)=>({kind:k,qty:c,part:p,name:nm});
   st(1,'Double-ended screws into the top','Turn 4 double-ended screws 115980 by hand into the corner holes on the underside of the table top, until the collar in the middle meets the wood. Roughly half the screw stays proud.',[F('s115980',4,'115980','Double-ended screw')]);
@@ -675,20 +707,20 @@ function buildLack(){
   const put=(obj,pos,text,dy)=>{obj.position.set(pos[0],pos[1],pos[2]);tray.add(obj);if(text)trayLabels.push({anchor:V(pos[0],-0.15,pos[2]),text,dy});};
   // Fittings lie along X; makeFit builds them along their own +Y axis.
   const lay=(kind,pos,text,dy)=>{const m=makeFit(kind);m.rotation.z=Math.PI/2;put(m,pos,text,dy);};
-  put(box(topW,topT,topD),[-7,topT/2,-5],'Table top <code>×1</code>');
-  put(box(shelfW,shelfT,shelfD),[-8,shelfT/2,6.5],'Lower shelf <code>×1</code>');
+  put(box(topW,topT,topD),[-7,topT/2,-5],tagText('Table top','',1));
+  put(box(shelfW,shelfT,shelfD),[-8,shelfT/2,6.5],tagText('Lower shelf','',1));
   [0,1,2,3].forEach(i=>{const l=box(legS,legS,legH);l.position.set(7.2+i*1.4,legS/2,-5);tray.add(l);});
-  trayLabels.push({anchor:V(9.3,-0.15,-0.6),text:'Leg <code>×4</code>'});
+  trayLabels.push({anchor:V(9.3,-0.15,-0.6),text:tagText('Leg','',4)});
   // The four fittings stay clustered so the close-up can show them together, 1:1,
   // beside a 10 cm bar; their labels are fanned out instead.
-  const bar=box(2,0.07,0.16);bar.children[0].material=hlMat;put(bar,[6.4,0.035,3.3],'10 cm — for scale',-4);
-  lay('s115980',[6.4,3*MM,4.4],'Double-ended screw <code>115980</code> <code>×4</code>',24);
-  lay('s108530',[6.4,2.5*MM,5.3],'Screw <code>108530</code> <code>×4</code>',48);
-  lay('s109041',[6.4,2.1*MM,6.2],'Screw <code>109041</code> <code>×4</code>',72);
-  put(bracket120298(),[6.4,17*MM,7.1],'Angle bracket <code>120298</code> <code>×4</code>',96);
+  const bar=box(2,0.07,0.16);bar.children[0].material=hlMat;put(bar,[6.4,0.035,3.3],tagText('10 cm — for scale'),-4);
+  lay('s115980',[6.4,3*MM,4.4],tagText('Double-ended screw','115980',4),24);
+  lay('s108530',[6.4,2.5*MM,5.3],tagText('Screw','108530',4),48);
+  lay('s109041',[6.4,2.1*MM,6.2],tagText('Screw','109041',4),72);
+  put(bracket120298(),[6.4,17*MM,7.1],tagText('Angle bracket','120298',4),96);
   const tmpl=new THREE.Group(),tmplInner=template120938();
   tmplInner.rotation.x=Math.PI/2;tmpl.add(tmplInner);tmpl.rotation.y=Math.PI/2;
-  put(tmpl,[6.4,4*MM,11],'Marking template <code>120938</code> — a tool, it does not stay on the table <code>×1</code>');
+  put(tmpl,[6.4,4*MM,11],tagText('Marking template','120938',1));
   ['driver','hammer','awl'].forEach((k,i)=>{const t=makeFit(k);t.rotation.z=Math.PI/2;t.position.set(-7+i*7,0.3,14.5);tray.add(t);});
   trayLabels.push({anchor:V(0,-0.15,15.8),text:'You supply: screwdriver · hammer · awl'});
   const gp=[];
@@ -697,7 +729,7 @@ function buildLack(){
   tray.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gp,3)),new THREE.LineBasicMaterial({color:0x141414,transparent:true,opacity:0.16})));
 
   const cheers={1:{m:"Off to a great start!",p:'wave'},4:{m:"First brackets on. Nice!",p:'thumbsUp'},7:{m:"Shelf's in — looking good!",p:'happy'}};
-  return {name:'LACK coffee table 90×55',count:8,P,steps:S,fx,vis,trayLabels,trayY:1,trayFit:{v:17,x:30},trayCenter:V(-2.5,1,2),
+  return {name:'LACK coffee table',count:8,P,steps:S,fx,vis,trayLabels,trayY:1,trayFit:{v:17,x:30},trayCenter:V(-2.5,1,2),
     trayDetail:{at:V(6.4,0.12,5.2),half:2.2,label:'fittings & 10 cm bar, 1:1'},autoAnn:true,
     dh:{1:1.25,3:0.85,4:0.55,5:0.85,6:0.55,8:0.6},
     // Hand-picked close-up angles: the generic broadside guess ends up looking straight
@@ -716,7 +748,14 @@ const camI=new THREE.OrthographicCamera(-1,1,1,-1,-500,500);camI.layers.enable(2
 let camCenter=V(0,2,0),camTarget=V(0,2,0),iCenter=V(0,2,0),iTarget=V(0,2,0);
 let halfView=13,halfTarget=13,iHalf=3,iHalfTarget=3,userZoom=1,baseHalf=13;
 let panX=0,panY=0,panXTarget=0,panYTarget=0;   // shift main view when a detail is shown
-const ANCHOR_X=0,ANCHOR_Y=-0.05;               // NDC resting place for the highlighted marker
+// NDC resting place for the highlighted marker. On a portrait canvas the assembly reaches
+// up and to the left of the fastener, so the marker has to sit lower or the model rides the
+// top edge with a band of white underneath it.
+const ANCHOR_X=0;
+function anchorY(){return canvas.clientWidth<canvas.clientHeight?-0.28:-0.05;}
+// How far the servo may push the view to reach that anchor. A phone frames the assembly
+// with little margin, so a full-authority shove drags the far end of it off screen.
+function panLimit(){return canvas.clientWidth<canvas.clientHeight?0.4:0.9;}
 let iTheta=0.9,iPhi=0.95;                       // fixed inset angle (independent of the user's viewing angle)
 function orbit(cam,center,half,aspect,th,ph,pX,pY){
   const R=80;
@@ -843,6 +882,9 @@ function positionTrayLabels(){
 const TRAY_SMALL=0.55;   // narrow screens list the parts below, so the tray itself can sit tighter
 function trayScale(){return COMPACT.matches?TRAY_SMALL:1;}
 function trayHalf(){const f=MODEL.trayFit;if(!f)return 12.5;const k=trayScale();return Math.max(f.v*k,f.x*k/(canvas.clientWidth/Math.max(1,canvas.clientHeight)));}
+// baseHalf is a radius, so it only frames the step on a landscape canvas. On a phone the
+// canvas is taller than it is wide, and the same radius crops the assembly left and right.
+function stepHalf(){const a=canvas.clientWidth/Math.max(1,canvas.clientHeight);return a<1?baseHalf/a:baseHalf;}
 
 // ---------- animation ----------
 const clock=new THREE.Clock();
@@ -863,7 +905,7 @@ function entryOffset(n,it){
 function loop(){
   const tt=clock.getElapsedTime();
   if(idx===0)baseHalf=trayHalf();
-  halfTarget=baseHalf/userZoom;
+  halfTarget=(idx===0?baseHalf:stepHalf())/userZoom;
   camCenter.lerp(camTarget,0.12);iCenter.lerp(iTarget,0.14);
   halfView+=(halfTarget-halfView)*0.12;iHalf+=(iHalfTarget-iHalf)*0.14;
   resize();
@@ -887,9 +929,9 @@ function loop(){
   const show=calloutOn&&primaryMarker;
   // servo the pan so the highlighted marker settles on the anchor and stays framed
   // while the user rotates, instead of drifting under the opaque inset
-  if(show&&idx!==0){const v=primaryMarker.clone().project(camera);
-    panXTarget=Math.max(-0.9,Math.min(0.9,panX+(v.x-ANCHOR_X)));
-    panYTarget=Math.max(-0.9,Math.min(0.9,panY+(v.y-ANCHOR_Y)));}
+  if(show&&idx!==0){const v=primaryMarker.clone().project(camera);const lim=panLimit();
+    panXTarget=Math.max(-lim,Math.min(lim,panX+(v.x-ANCHOR_X)));
+    panYTarget=Math.max(-lim,Math.min(lim,panY+(v.y-anchorY())));}
   else{panXTarget=0;panYTarget=0;}
   panX+=(panXTarget-panX)*0.12;panY+=(panYTarget-panY)*0.12;
   const w=canvas.clientWidth,h=Math.max(1,canvas.clientHeight);
@@ -914,9 +956,9 @@ selBtn.insertAdjacentHTML('beforeend',icon('chevron-down'));
 // Reset to rest pose first, so a part left mid-flight by fast step-skipping never sticks.
 function setVis(n){for(const k in P){const it=P[k];it.obj.visible=false;it.obj.position.copy(it.pos);if(it.spin)it.obj.rotation.y=it.rotY;}
   MODEL.vis(n).forEach(k=>{if(P[k])P[k].obj.visible=true;});}
-// ---------- the encouraging IKEA guy ----------
+// ---------- the encouraging assembly buddy ----------
 const buddyEl=document.getElementById('buddy'),speechEl=document.getElementById('speech'),guyEl=document.getElementById('guy');
-// The IKEA manual figure: each pose is one continuous silhouette, plus the face
+// The manual figure: each pose is one continuous silhouette, plus the face
 // line, eye and the split between the legs drawn inside it.
 const BODY={
   // arm out to the side, other hand on the hip
@@ -1062,7 +1104,7 @@ function loadModel(key){
   const _vis=MODEL.vis,_fx=MODEL.fx;
   MODEL.vis=n=>n>=fin?_vis(rc):_vis(n);
   MODEL.fx=n=>n>=fin?[]:_fx(n);
-  titleEl.textContent=MODEL.name;document.title='IKEA — '+MODEL.name;
+  titleEl.textContent=MODEL.name;document.title=MODEL.name+' — assembly guide';
   selLabel.textContent=MODEL.name;
   selMenu.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',b.dataset.model===key));
   go(0);reserveRows();
